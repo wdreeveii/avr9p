@@ -11,6 +11,8 @@
 #include <util/twi.h>
 #include "usart.h"
 #include "rtc.h"
+#include "config.h"
+#include "util.h"
 
 /* Some definitions.. */
 uint8_t rtc_check_halt(void);

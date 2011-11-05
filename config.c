@@ -2,11 +2,13 @@
 #include "config.h"
 #include "rtc.h"
 #include "usart.h"
+#include "iocontrol.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define SERIALNUM_LENGTH		8
 #define EVENTLIST_SIZE		50

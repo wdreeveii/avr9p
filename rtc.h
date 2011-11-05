@@ -5,11 +5,11 @@
 typedef uint32_t time_t;
 
 void RTC_Init(void);
-int8_t rtc_check_halt(void);
+uint8_t rtc_check_halt(void);
 void rtc_halt_reset(void);
-int8_t rtc_check_osc_fail(void);
+uint8_t rtc_check_osc_fail(void);
 void rtc_stop_reset(void);
-int8_t rtc_check_stop(void);
+uint8_t rtc_check_stop(void);
 void rtc_squarewave_enable(void);
 void rtc_osc_fail_reset(void);
 void print_time(void);

@@ -1,3 +1,6 @@
+// M41T83 operation code example
+// Whitham D. Reeve II
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,43 +12,22 @@
 #include "usart.h"
 #include "rtc.h"
 
-void RTC_Init(void)
-{
-	/* frequency = cpuspeed / (16 + 2(TWBR) * 4^(TWSR)) */
-	/* 50000 = 20000000 / (16 + 2(48) * 4^1) */
-	
-	/* set the prescaler to 4^1 */
-	TWSR = 1;
-	
-	TWBR = 40;
-	
-	// configure pin change interrupt for the square wave output from the rtc
-	// enable PCIE2
-	PCICR = (1 << 1);
-	PCMSK1 = (1 << 2);
-	
-	PORTB &= ~(1<<2);
-	DDRB &= ~(1<<2);
-	
-	if(rtc_check_halt() == -1)
-	{
-		printf("halt Resetting..\n");
-		rtc_halt_reset();	
-	}
-	if(rtc_check_osc_fail() == -1)
-	{
-		printf("osc Resetting..\n");
-		rtc_osc_fail_reset();
-	}
-	if(rtc_check_stop() == -1)
-	{
-		printf("Resetting..\n");
-		rtc_stop_reset();	
-	}
-	//rtc_start();
-	rtc_squarewave_enable();
-}
+/* Some definitions.. */
+uint8_t rtc_check_halt(void);
+void rtc_halt_reset(void);
+uint8_t rtc_check_osc_fail(void);
+void rtc_stop_reset(void);
+uint8_t rtc_check_stop(void);
+void rtc_squarewave_enable(void);
+void rtc_osc_fail_reset(void);
 
+int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf);
+int m41t83_write_bytes(uint16_t eeaddr, int len, uint8_t *buf);
+
+/* Lets start off with defining the date and time bits of the memory mapped
+ * registers on the m41t83
+ * Page 21 of the m41t83 datasheet has a table with more detail
+ */
 struct m41DateBlock {
 	unsigned int secs : 4;
 	unsigned int tsecs : 3;
@@ -74,11 +56,21 @@ struct m41DateBlock {
 	unsigned int Year : 4;
 	unsigned int tYear : 4;
 };
+
+/* Calculate the number of leap years that happen before the specified date.
+ * Takes one argument the year to count leap years up to.
+ * Returns the number of leap years that have happened before the specified date
+ */
 unsigned long leapYearsBefore (unsigned long year)
 {
 	year--;
 	return (year/4) - (year/100) + (year/400);
 }
+
+/* Test whether the provided year is a leap year
+ * Takes one argument the year to be tested
+ * returns true if the specified year is a leap year, other wise false.
+ */
 int isLeapYear(unsigned long year)
 {
 	if (year % 400 == 0)
@@ -89,14 +81,14 @@ int isLeapYear(unsigned long year)
 		return 1;
 	else	return 0;
 }
+/* int set_time(time_t timestamp)
+ * Convert a unix timestamp into the m41t83 memory block format and save to device
+ * Takes one argument the timestamp in the number of seconds since midnight January 1 1970.
+ * Returns -1 on error
+ * Author: Whitham D. Reeve II
+ */
 int set_time(time_t timestamp)
-{
-	ioflip(1);
-	uint8_t datestring[16];
-	ultoa(timestamp, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, "|\n", 2);
-	
+{	
 	struct m41DateBlock dateblock;
 	uint8_t rv = 0;
 	
@@ -112,11 +104,7 @@ int set_time(time_t timestamp)
 
 	dateblock.tYear = (total_years % 100) / 10ul;
 	dateblock.Year = (total_years % 100) % 10ul;
-	/*ultoa(dateblock.tYear, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	ultoa(dateblock.Year, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, ", ", 2);*/
+
 	if (isLeapYear(total_years))
 		month_lens[1] = 29;
 		
@@ -125,46 +113,34 @@ int set_time(time_t timestamp)
 		
 	dateblock.tMonth = (month_index + 1) / 10;
 	dateblock.Month = (month_index + 1) % 10;
-	/*ultoa(dateblock.tMonth, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	ultoa(dateblock.Month, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, ", ", 2);*/
+
 	
 	dateblock.tDayOfMonth = (rem_days) / 10;
 	dateblock.DayOfMonth = (rem_days) % 10;
-	/*ultoa(dateblock.tDayOfMonth, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	ultoa(dateblock.DayOfMonth, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, ", ", 2);*/
+
 	dateblock.thours = (rem_secs / 3600) / 10;
 	dateblock.hours = (rem_secs / 3600) % 10;
-	/*
-	ultoa(dateblock.thours, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	ultoa(dateblock.hours,datestring,10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, ", ", 2);*/
-	
+
 	rem_secs = (rem_secs % 3600);
 	
 	dateblock.tmins = (rem_secs / 60) / 10;
 	dateblock.mins = (rem_secs / 60) % 10;
 
-	/*ultoa(dateblock.tmins, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	ultoa(dateblock.mins, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, "\n", 1);*/
 	rem_secs = (rem_secs % 60);
 
 	dateblock.tsecs = rem_secs / 10;
 	dateblock.secs = rem_secs % 10;
 	rv = m41t83_write_bytes(0x01, 7,(void*) &dateblock);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC set_time WRITE ERROR\n");
 }
 
+/* time()
+ * Return the current unix time.
+ * Reads the m41t83 date/time block from the device and converts into unix time.
+ * Takes no arguments
+ * Returns the number of seconds since midnight January 1 1970
+ * Author: Whitham D. Reeve II
+ */
 time_t time()
 {
 	uint8_t month_lens[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
@@ -172,7 +148,7 @@ time_t time()
 	struct m41DateBlock dateblock;
 	
 	rv = m41t83_read_bytes(0x01, 7, (void *)(&dateblock));
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1) printf("RTC time READ ERROR\n");
 	
 	unsigned long year = 2000 + dateblock.Year + (dateblock.tYear * 10);
 	unsigned long year_days = ((year - 1970) * 365) + (leapYearsBefore(year) - leapYearsBefore(1970));
@@ -191,6 +167,43 @@ time_t time()
 						 (dateblock.secs + (dateblock.tsecs * 10));
 	
 	return total_secs;
+}
+
+void RTC_Init(void)
+{
+	/* frequency = cpuspeed / (16 + 2(TWBR) * 4^(TWSR)) */
+	/* 50000 = 20000000 / (16 + 2(48) * 4^1) */
+	
+	/* set the prescaler to 4^1 */
+	TWSR = 1;
+	
+	TWBR = 40;
+	
+	// configure pin change interrupt for the square wave output from the rtc
+	// enable PCIE2
+	PCICR = (1 << 1);
+	PCMSK1 = (1 << 2);
+	
+	PORTB &= ~(1<<2);
+	DDRB &= ~(1<<2);
+	
+	if(rtc_check_halt())
+	{
+		printf("halt Resetting..\n");
+		rtc_halt_reset();	
+	}
+	if(rtc_check_osc_fail() == -1)
+	{
+		printf("osc Resetting..\n");
+		rtc_osc_fail_reset();
+	}
+	if(rtc_check_stop())
+	{
+		printf("Resetting..\n");
+		rtc_stop_reset();	
+	}
+	//rtc_start();
+	rtc_squarewave_enable();
 }
 
 void print_time(void)
@@ -214,70 +227,99 @@ ISR(PCINT1_vect, ISR_NAKED)
 		//ioflip(1);
 		print_time();
 		mucron_tick();
+		// DO WHAT EVER YOU NEED TO DO ONCE A SECOND HERE
 	}
 	else
 		{} // do nothing
 	reti();
 }
 
+/* void rtc_squarewave_enable(void)
+ * Tell the m41t83 chip to enable the square wave signal output
+ * Author: Whitham D. Reeve II
+ */
 void rtc_squarewave_enable(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	rv = m41t83_read_bytes(0x13, 1, databuffer);
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1) printf("RTC squarewave_enable READ ERROR\n");
 	
 	databuffer[0] |= 0xF0;
 	
 	rv = m41t83_write_bytes(0x13, 1, databuffer);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC squarewave_enable WRITE ERROR\n");
 	
 	rv = m41t83_read_bytes(0x0A, 1, databuffer);
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1) printf("RTC squarewave_enable READ ERROR\n");
 	
 	databuffer[0] |= (1<<6);
 	
 	rv = m41t83_write_bytes(0x0A, 1, databuffer);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC squarewave_enable WRITE ERROR\n");
 }
 
-int8_t rtc_check_halt(void)
+/* int8_t rtc_check_halt(void)
+ * Ask the m41t83 chip if the halt bit is set
+ * Author: Whitham D. Reeve II
+ */
+uint8_t rtc_check_halt(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	rv = m41t83_read_bytes(0x0C, 1, databuffer);
-	if (rv == -1) USART_Send(0, "RTC Init WRITE ERROR\n", 21);
+	if (rv == -1)
+	{
+		printf("RTC check_halt WRITE ERROR\n");
+		return 1;
+		
+	}
 	if (databuffer[0] & (1<<6))
 	{
-		//DSEND(0, "(check_halt)osc halt set\n");
-		return -1;	
+		printf("WARNING: HALT BIT SET\n");
+		return 1;	
 	}
 	return 0;
 }
-
+/* void rtc_halt_reset(void)
+ * Tell the m41t83 chip to reset the halt bit
+ * Author: Whitham D. Reeve II
+ */
 void rtc_halt_reset(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	databuffer[0] = 0x00;
 	rv = m41t83_write_bytes(0x0C, 1, databuffer);
-	if (rv == -1) USART_Send(0, "RTC Init WRITE ERROR\n", 21);
+	if (rv == -1) printf("RTC halt_reset WRITE ERROR\n");
 }
 
-int8_t rtc_check_stop(void)
+/* uint8_t rtc_check_stop(void)
+ * Ask the m41t83 chip if the stop bit is set
+ * Author: Whitham D. Reeve II
+ */
+uint8_t rtc_check_stop(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	rv = m41t83_read_bytes(0x01, 1, databuffer);
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1)
+	{
+		printf("RTC check_stop READ ERROR\n");
+		return 1;
+	}
 	if (databuffer[0] & 0x80)
 	{
-		USART_Send(0, "WARNING: STOP BIT SET\n", 22);
-		return -1;
+		printf("WARNING: STOP BIT SET\n");
+		return 1;
 	}
 	return 0;
 }
 
+/* void rtc_stop_reset(void)
+ * Tell the m41t83 chip to reset the stop bit
+ * Author: Whitham D. Reeve II
+ */
 void rtc_stop_reset(void)
 {
 	uint8_t rv = 0;
@@ -285,10 +327,11 @@ void rtc_stop_reset(void)
 	// pump the oscillator
 	databuffer[0] = 0x80;
 	rv = m41t83_write_bytes(0x01, 1, databuffer);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC stop_reset WRITE ERROR\n");
+	
 	databuffer[0] = 0x00;
 	rv = m41t83_write_bytes(0x01, 1, databuffer);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC stop_reset WRITE ERROR\n");
 	
 	delay_1s();
 	delay_1s();
@@ -296,32 +339,49 @@ void rtc_stop_reset(void)
 	delay_1s();
 	
 }
-int8_t rtc_check_osc_fail(void)
+
+/* uint8_t rtc_check_osc_fail(void)
+ * Ask the m41t83 chip if the oscillator fail bit is set
+ * Author: Whitham D. Reeve II
+ */
+uint8_t rtc_check_osc_fail(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	rv = m41t83_read_bytes(0x0F, 1, databuffer);
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1)
+	{
+		printf("RTC check_osc_fail READ ERROR\n");
+		return 1;
+	
+	}
 	if (databuffer[0] & 0x04)
 	{
-		USART_Send(0, "WARNING: OSCILLATOR FAIL BIT SET\n", 33);
-		return -1;
+		printf("WARNING: OSCILLATOR FAIL BIT SET\n");
+		return 1;
 	}
 	return 0;
 	
 }
+
+/* void rtc_osc_fail_reset(void)
+ * Tell the m41t83 chip to reset the oscillator fail bit
+ * Author: Whitham D. Reeve II
+ */
 void rtc_osc_fail_reset(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	rv = m41t83_read_bytes(0x0F, 1, databuffer);
-	if (rv == -1) USART_Send(0, "READ ERROR\n", 11);
+	if (rv == -1) printf("RTC osc_fail_reset READ ERROR\n");
 	
 	databuffer[0] &= ~0x04;
 	
 	rv = m41t83_write_bytes(0x0F, 1, databuffer);
-	if (rv == -1) USART_Send(0, "WRITE ERROR\n", 12);
+	if (rv == -1) printf("RTC osc_fail_reset WRITE ERROR\n");
 }
+
+/* BEGIN IIC support code */
 
 #define M41T83_SLAVE_ADDR	0xD0
 

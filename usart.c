@@ -121,13 +121,16 @@ void USART_Init2(uint16 baud)
    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 void USART_Init(void)
 {
+	// default to 42 which is 57600 baud at 20mhz
 	uint16 baud = 42;
 	uint16 config_baud = 0;
+	
 	// The following lines are helpful when creating a config eeprom from scratch
 	//config_set_baud(0, 42);
 	//config_set_baud(1, 42);
 	if (config_baud = config_get_baud(0)) baud = config_baud;
 	USART_Init1(baud);
+	
 	// setup stdout so printf works
 	stdout = &standard_output;
 	
@@ -150,20 +153,13 @@ void USART_Init(void)
 void USART_Send(char port, char *p_data, unsigned short length)
 {
 	unsigned short i = 0;
-	/* Wait end of transmission -- not sure this is needed*/
-	/*if (port == 0)
-		while(!(UCSR0A & (1<<UDRE0)));
-	else
-		while(!(UCSR1A & (1<<UDRE1)));*/
-		
-	cli();
-	// disable interrupts while copying data into the send buffer
 	
-	/* Copy data into the buffer */
-	for(i=0; i<length; i++)
-		Buffer_Push(&out_buf[port], *(p_data+i));
-		
-	sei();
+	/* disable interrupts while data is copied into the send buffer */
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		for(i=0; i<length; i++)
+			Buffer_Push(&out_buf[port], *(p_data+i));
+	}
 	
 	/* Enable UDR Empty interrupt */
 	if (port == 0)
@@ -186,19 +182,23 @@ void USART_Send(char port, char *p_data, unsigned short length)
 ISR(USART0_UDRE_vect)
 {
 	char c;	
-	if(Buffer_Pull(&out_buf[0], (unsigned char *)&c) == -1)					// If buffer empty
-		UCSR0B &= ~(1<<UDRIE0);	// Stop UDR empty interrupt : Tx End
+	
+	/* pull a byte out of the buffer */
+	if(Buffer_Pull(&out_buf[0], (unsigned char *)&c) == -1)		// If buffer empty
+		UCSR0B &= ~(1<<UDRIE0);									// Stop UDR empty interrupt : Tx End
 	else
-		UDR0 = c;											// Else, put c in UDR
+		UDR0 = c;												// Else, put c in UDR
 }
 
 ISR(USART1_UDRE_vect)
 {
-	char c;	
-	if(Buffer_Pull(&out_buf[1], (unsigned char *)&c) == -1)					// If buffer empty
-		UCSR1B &= ~(1<<UDRIE1);	// Stop UDR empty interrupt : Tx End
+	char c;
+	
+	/* pull a byte out of the buffer */
+	if(Buffer_Pull(&out_buf[1], (unsigned char *)&c) == -1)		// If buffer empty
+		UCSR1B &= ~(1<<UDRIE1);									// Stop UDR empty interrupt : Tx End
 	else
-		UDR1 = c;											// Else, put c in UDR
+		UDR1 = c;												// Else, put c in UDR
 }
 
 void cmd_switch_output(buffer_t *buf, unsigned char data_size)
@@ -304,6 +304,8 @@ void process_packet(buffer_t *buf)
    Purpose : Check frame error and parity error. If they are at
              least one error, read character from UDR and put
              it in garbage. Else, push it into input buffer.
+             Figure out how many bytes are in the packet and
+             process the packet if all bytes are recieved.
 
    Input : void
 
@@ -312,10 +314,10 @@ void process_packet(buffer_t *buf)
 ISR(USART0_RX_vect)
 {
 	char garbage;
-	if((UCSR0A & (1<<FE0))||(UCSR0A & (1<<UPE0)))	// If frame error or parity error
-		garbage = UDR0;							// UDR -> Garbage
+	if((UCSR0A & (1<<FE0))||(UCSR0A & (1<<UPE0)))		// If frame error or parity error
+		garbage = UDR0;									// UDR -> Garbage
 	else
-		Buffer_Push(&in_buf[0], UDR0);				// else, send received char into input buffer
+		Buffer_Push(&in_buf[0], UDR0);					// else, send received char into input buffer
 	
 	//do we know the packet size?
 	if (in_buf[0].count > 1)
@@ -337,9 +339,4 @@ ISR(USART1_RX_vect)
 		garbage = UDR1;							// UDR -> Garbage
 	else
 		Buffer_Push(&in_buf[1], UDR1);				// else, send received char into input buffer
-}
-
-ISR(BADISR_vect)
-{
-   iocontrol(2,1);
 }

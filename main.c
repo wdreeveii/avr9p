@@ -88,3 +88,8 @@ int main(void)
 	return(0);
 }
 
+ISR(BADISR_vect)
+{
+   iocontrol(2,1);
+}
+

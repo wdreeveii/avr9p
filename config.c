@@ -1,14 +1,15 @@
+#include <inttypes.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include <avr/io.h>
 
 #include "config.h"
 #include "rtc.h"
 #include "usart.h"
 #include "iocontrol.h"
-#include <avr/io.h>
-#include <avr/interrupt.h>
-#include <inttypes.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+
 
 #define SERIALNUM_LENGTH		8
 #define EVENTLIST_SIZE		50
@@ -59,6 +60,10 @@ void EEPROM_write_page(uint16_t start_address, uint8_t *data, uint16_t length)
 		EEPROM_write(start_address + index,  *(data + index));	
 	}	
 }
+
+/* EEPROM memory is much too slow to iterate through every time a timer tick is processed.
+ * Keep an event list in ram that is initialized everytime the micro starts up
+ */
 struct s_mucron ramEventList[EVENTLIST_SIZE];
 
 void config_Init()

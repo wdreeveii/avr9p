@@ -15,9 +15,10 @@
 
 static int putchar_for_printf(char c, FILE *stream)
 {
-	if (c == '\n')
-		putchar_for_printf('\r', stream);
-		USART_Send(0, &c, 1);
+	/* print also \r if the character is \n */
+	if (c == '\n') putchar_for_printf('\r', stream);
+		
+	USART_Send(0, &c, 1);
 	return 0;	
 }
 
@@ -55,6 +56,7 @@ void USART_Init1(uint16 baud)
 	Buffer_Reset(&in_buf[0]);
 	Buffer_Reset(&out_buf[0]);
 	
+	/* Set double transmission speed */
 	UCSR0A = (1 << U2X0);
 	
 	/* Set baud rate */
@@ -64,6 +66,7 @@ void USART_Init1(uint16 baud)
 	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
 	UCSR0B = (1<<RXCIE0)|(1<<RXEN0)|(1<<TXEN0);
 	
+	/* Set 8 bit frame size */
 	UCSR0C = (3<<UCSZ00);
 	
 }
@@ -83,6 +86,7 @@ void USART_Init2(uint16 baud)
 	Buffer_Reset(&in_buf[1]);
 	Buffer_Reset(&out_buf[1]);
 
+	/* Set double transmission speed */
 	UCSR1A = (1 << U2X1);
 
 	/* Set baud rate */
@@ -92,6 +96,7 @@ void USART_Init2(uint16 baud)
 	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
 	UCSR1B = (1<<RXCIE1)|(1<<RXEN1)|(1<<TXEN1);
 
+	/* Set 8 bit frame size */
 	UCSR1C = (3<<UCSZ10);
 }
 
@@ -131,7 +136,7 @@ void USART_Init(void)
  *          length, length of frame
  */
 void USART_Send(char port, char *p_data, unsigned short length)
-{
+{	
 	unsigned short i = 0;
 	
 	/* disable interrupts while data is copied into the send buffer */
@@ -160,10 +165,12 @@ ISR(USART0_UDRE_vect)
 	char c;	
 	
 	/* pull a byte out of the buffer */
-	if(Buffer_Pull(&out_buf[0], (unsigned char *)&c) == -1)		// If buffer empty
-		UCSR0B &= ~(1<<UDRIE0);									// Stop UDR empty interrupt : Tx End
+	if(Buffer_Pull(&out_buf[0], (unsigned char *)&c) == -1)
+		/* If buffer empty stop UDR empty interrupt : Tx End */
+		UCSR0B &= ~(1<<UDRIE0);
 	else
-		UDR0 = c;												// Else, put c in UDR
+		/* Else, put c in UDR */
+		UDR0 = c;
 }
 
 ISR(USART1_UDRE_vect)
@@ -171,10 +178,12 @@ ISR(USART1_UDRE_vect)
 	char c;
 	
 	/* pull a byte out of the buffer */
-	if(Buffer_Pull(&out_buf[1], (unsigned char *)&c) == -1)		// If buffer empty
-		UCSR1B &= ~(1<<UDRIE1);									// Stop UDR empty interrupt : Tx End
+	if(Buffer_Pull(&out_buf[1], (unsigned char *)&c) == -1)
+		/* If buffer empty stop UDR empty interrupt : Tx End */
+		UCSR1B &= ~(1<<UDRIE1);
 	else
-		UDR1 = c;												// Else, put c in UDR
+		/* Else, put c in UDR */
+		UDR1 = c;
 }
 
 void cmd_switch_output(buffer_t *buf, unsigned char data_size)
@@ -278,24 +287,26 @@ void process_packet(buffer_t *buf)
 /*
  * Interrupt Routine : Receive complete
  *
- * Purpose : Check frame error and parity error. If they are at
+ * Purpose : Check frame error and parity error. If there is at
  *           least one error, read character from UDR and put
  *           it in garbage. Else, push it into input buffer.
  *           Figure out how many bytes are in the packet and
- *           process the packet if all bytes are recieved.
+ *           process the packet if all bytes are received.
  */
 ISR(USART0_RX_vect)
 {
 	char garbage;
-	if((UCSR0A & (1<<FE0))||(UCSR0A & (1<<UPE0)))		// If frame error or parity error
-		garbage = UDR0;									// UDR -> Garbage
+	if((UCSR0A & (1<<FE0))||(UCSR0A & (1<<UPE0)))
+		/* If frame error or parity error UDR is Garbage */
+		garbage = UDR0;
 	else
-		Buffer_Push(&in_buf[0], UDR0);					// else, send received char into input buffer
+		/* Else, send received char into input buffer */
+		Buffer_Push(&in_buf[0], UDR0);
 	
-	//do we know the packet size?
+	/* do we know the packet size? */
 	if (in_buf[0].count > 1)
 	{
-		// have all the bytes of the packet been recieved
+		/* have all the bytes of the packet been received */
 		if (*(in_buf[0].p_out) + HEADER_SIZE == in_buf[0].count)
 		{
 			process_packet(&in_buf[0]);
@@ -308,8 +319,10 @@ ISR(USART1_RX_vect)
 {
 	char garbage;
 
-	if((UCSR1A & (1<<FE1))||(UCSR1A & (1<<UPE1)))		// If frame error or parity error
-		garbage = UDR1;									// UDR -> Garbage
+	if((UCSR1A & (1<<FE1))||(UCSR1A & (1<<UPE1)))
+		/* If frame error or parity error UDR is Garbage */
+		garbage = UDR1;
 	else
-		Buffer_Push(&in_buf[1], UDR1);					// else, send received char into input buffer
+		/* Else, send received char into input buffer */
+		Buffer_Push(&in_buf[1], UDR1);
 }

@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 #include "buffer.h"
 #include "usart.h"
 #include "config.h"
@@ -27,20 +28,18 @@ static FILE standard_output = FDEV_SETUP_STREAM(putchar_for_printf, NULL, _FDEV_
  */
 buffer_t in_buf[2], out_buf[2];
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   USART_Init : Initialize USART #1
-
-   Purpose : Init the USART with chosen baudrate, number of
-             data bits and stop bit and enable the transmitter
-             & reciever, and enable the recieve interrupt.
-             
-             Also enable the buffers used to store data being
-             transmitted and recieved by this usart.
-
-   Input : baudrate
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/*
+ *  USART_Init : Initialize USARTS
+ *
+ *  Purpose : Init the USART with chosen baudrate, number of
+ *            data bits and stop bit and enable the transmitter
+ *            & reciever, and enable the recieve interrupt.
+ *            
+ *            Also enable the buffers used to store data being
+ *            transmitted and recieved by this usart.
+ *
+ *  Input : baudrate
+ */
 void USART_Init1(uint16 baud)
 {
 	/* Wait latest receive character was pull from UDR */
@@ -69,20 +68,6 @@ void USART_Init1(uint16 baud)
 	
 }
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   USART_Init : Initialize USART #2
-
-   Purpose : Init the USART with chosen baudrate, number of
-             data bits and stop bit and enable the transmitter
-             & reciever, and enable the recieve interrupt.
-             
-             Also enable the buffers used to store data being
-             transmitted and recieved by this usart.
-
-   Input : baudrate
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 void USART_Init2(uint16 baud)
 {
 	/* Wait latest receive character was pull from UDR */
@@ -109,16 +94,13 @@ void USART_Init2(uint16 baud)
 
 	UCSR1C = (3<<UCSZ10);
 }
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   USART_Init : Initialize USART
 
-   Purpose : Init the USART with baudrate stored in config eeprom,
-             If no baudrate is found, use a default value of 42 aka 57600baud.
-
-   Input : void
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/*
+ *  USART_Init : Initialize USART
+ *
+ *  Purpose : Init the USART with baudrate stored in config eeprom,
+ *            If no baudrate is found, use a default value of 42 aka 57600baud.
+ */
 void USART_Init(void)
 {
 	// default to 42 which is 57600 baud at 20mhz
@@ -139,17 +121,15 @@ void USART_Init(void)
 	USART_Init2(baud);
 }
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Usart_Send : Send a frame
-
-   Purpose : Copy data to output buffer and enable
-             UDR empty interrupt
-
-   Input : p_data, pointer on data frame to send
-           length, length of frame
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/*
+ *  Usart_Send : Send a frame
+ *
+ *  Purpose : Copy data to output buffer and enable
+ *            UDR empty interrupt
+ *
+ *  Input : p_data, pointer on data frame to send
+ *          length, length of frame
+ */
 void USART_Send(char port, char *p_data, unsigned short length)
 {
 	unsigned short i = 0;
@@ -168,17 +148,13 @@ void USART_Send(char port, char *p_data, unsigned short length)
 		UCSR1B |= (1<<UDRIE1);
 }
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Interrupt Routine : UDR Empty
-
-   Purpose : Try to take a character from output buffer. If
-             buffer is empty (character == -1), disable this
-             interrupt. Else, put char in UDR.
-
-   Input : void
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/*
+ *  Interrupt Routine : UDR Empty
+ *
+ *  Purpose : Try to take a character from output buffer. If
+ *            buffer is empty (character == -1), disable this
+ *            interrupt. Else, put char in UDR.
+ */
 ISR(USART0_UDRE_vect)
 {
 	char c;	
@@ -298,19 +274,16 @@ void process_packet(buffer_t *buf)
 			break;
 	}
 }
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-   Interrupt Routine : Receive complete
 
-   Purpose : Check frame error and parity error. If they are at
-             least one error, read character from UDR and put
-             it in garbage. Else, push it into input buffer.
-             Figure out how many bytes are in the packet and
-             process the packet if all bytes are recieved.
-
-   Input : void
-
-   Output : void
-   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+/*
+ * Interrupt Routine : Receive complete
+ *
+ * Purpose : Check frame error and parity error. If they are at
+ *           least one error, read character from UDR and put
+ *           it in garbage. Else, push it into input buffer.
+ *           Figure out how many bytes are in the packet and
+ *           process the packet if all bytes are recieved.
+ */
 ISR(USART0_RX_vect)
 {
 	char garbage;
@@ -335,8 +308,8 @@ ISR(USART1_RX_vect)
 {
 	char garbage;
 
-	if((UCSR1A & (1<<FE1))||(UCSR1A & (1<<UPE1)))	// If frame error or parity error
-		garbage = UDR1;							// UDR -> Garbage
+	if((UCSR1A & (1<<FE1))||(UCSR1A & (1<<UPE1)))		// If frame error or parity error
+		garbage = UDR1;									// UDR -> Garbage
 	else
-		Buffer_Push(&in_buf[1], UDR1);				// else, send received char into input buffer
+		Buffer_Push(&in_buf[1], UDR1);					// else, send received char into input buffer
 }

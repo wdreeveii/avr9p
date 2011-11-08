@@ -20,7 +20,7 @@ struct s_config {
 	int8_t			SerialNumber[SERIALNUM_LENGTH];
 	uint8_t 			NumEvents;
 	struct s_mucron	EventList[EVENTLIST_SIZE];
-} config;
+};
 
 uint8_t EEPROM_read(uint16_t uiAddress)
 {	/* Wait for completion of previous write */	while(EECR & (1<<EEPE)) ;	/* Set up address register */
@@ -68,7 +68,7 @@ struct s_mucron ramEventList[EVENTLIST_SIZE];
 
 void config_Init()
 {
-	EEPROM_read_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(mucron_t) * EVENTLIST_SIZE);
+	EEPROM_read_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * EVENTLIST_SIZE);
 }
 
 uint16 config_get_baud(uint8 port)
@@ -105,18 +105,18 @@ void config_set_baud(uint8 port, uint16 baud)
 
 void blank_eventlist_eeprom()
 {
-	char tmp[sizeof(mucron_t)] = {0};
+	char tmp[sizeof(struct s_mucron)] = {0};
 	
 	uint8_t index;
 	for (index = 0; index < EVENTLIST_SIZE; index++)
 	{
-		EEPROM_write_page(offsetof(struct s_config, EventList) + (sizeof(mucron_t) * index), tmp, sizeof(mucron_t) );
+		EEPROM_write_page(offsetof(struct s_config, EventList) + (sizeof(struct s_mucron) * index), tmp, sizeof(struct s_mucron) );
 	}
 }
 
 void mucron_write_mem()
 {
-	EEPROM_write_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(mucron_t) * EVENTLIST_SIZE);
+	EEPROM_write_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * EVENTLIST_SIZE);
 }
 
 void mucron_list_events()
@@ -163,9 +163,9 @@ void mucron_delete_event(uint16_t event_index)
 {
 	struct s_mucron zerodevent = {};
 	memcpy(ramEventList + event_index, &zerodevent, sizeof(struct s_mucron));
-	EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(mucron_t) * event_index,
+	EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index,
 						(void*)(ramEventList+event_index),
-						sizeof(mucron_t));
+						sizeof(struct s_mucron));
 	DSEND(0, "Delete Event Finished\n");
 }
 
@@ -181,7 +181,7 @@ void mucron_save_event(struct s_mucron *timerblock)
 		if (!event_ptr->start_time && !event_ptr->on_len)
 		{
 			memcpy(event_ptr, timerblock, sizeof(struct s_mucron));
-			EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(mucron_t) * event_index, (void*)event_ptr, sizeof(mucron_t));
+			EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index, (void*)event_ptr, sizeof(struct s_mucron));
 			break;
 		}
 	}

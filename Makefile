@@ -5,7 +5,7 @@ SRCS				:= main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c
 CC				:= avr-gcc
 OBJCOPY			:= avr-objcopy
 
-CCFLAGS = -std=c99 -g -mmcu=atmega644pa -Os
+CCFLAGS = -std=c99 -mmcu=atmega644pa -Os
 AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m644p
 LDFLAGS = 
 LIBS    = 

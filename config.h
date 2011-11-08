@@ -21,7 +21,7 @@ struct s_mucron {
 	uint16_t	on_len;
 	uint16_t	off_len;
 	uint8_t		port;
-} mucron_t;
+};
 
 
 void config_Init();

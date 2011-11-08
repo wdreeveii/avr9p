@@ -25,5 +25,8 @@ clean::
 	-rm -f *~ *.o *.dep ${TARGET} ${ELF}
 program: ${TARGET}
 	avrdude ${AVFLAGS} -U flash:w:${TARGET} -U eeprom:w:config.hex
+	
+fuse:
+	avrdude ${AVFLAGS} -U lfuse:w:0xff:m -U efuse:w:0xff:m -U hfuse:w:0xd9:m
 
 distclean:: clean

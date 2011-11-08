@@ -186,104 +186,6 @@ ISR(USART1_UDRE_vect)
 		UDR1 = c;
 }
 
-void cmd_switch_output(buffer_t *buf, unsigned char data_size)
-{
-	unsigned char port;
-	unsigned char state;
-	
-	Buffer_Pull(buf, &port);
-	Buffer_Pull(buf, &state);
-	iocontrol(port, state);
-	DSEND(0, "End Switch Output\n");
-}
-
-#define MAX_INT_STR_LEN 11
-void cmd_set_time(buffer_t *buf, unsigned char data_size)
-{
-	char unixtimestr[MAX_INT_STR_LEN];
-	unsigned char unixtimestrlen = 0;
-	time_t unixtime;
-	
-	for (; unixtimestrlen < data_size; unixtimestrlen++)
-	{
-		Buffer_Pull(buf, unixtimestr + unixtimestrlen);
-	}
-	unixtimestr[unixtimestrlen] = 0;
-	unixtime = (time_t)strtoul(unixtimestr, NULL, 10);
-	set_time(unixtime);
-}
-
-void cmd_set_timer_event(buffer_t *buf, unsigned char data_size)
-{
-	char tmp[data_size];
-	char index;
-	for (index = 0; index < data_size; index++)
-	{
-		Buffer_Pull(buf, tmp + index);
-	}
-	mucron_save_event((struct s_mucron *)tmp);
-}
-
-void cmd_delete_timer_event(buffer_t *buf, unsigned char data_size)
-{
-	char tmp[data_size];
-	char index;
-	for (index = 0; index < data_size; index++)
-	{
-		Buffer_Pull(buf, tmp+index);
-	}
-	if (data_size)
-	{
-		mucron_delete_event(tmp[0]);
-	}
-}
-
-#define HEADER_SIZE 2
-#define MAX_PACKET_SIZE 62
-
-#define CMD_SWITCH_OUTPUT 1
-#define CMD_SET_TIME 2
-#define CMD_GET_TIME 3
-#define CMD_SET_TIMER_EVENT 4
-#define CMD_GET_TIMER_EVENTS 5
-#define CMD_DELETE_TIMER_EVENT 6
-#define CMD_PING 7
-
-void process_packet(buffer_t *buf)
-{
-	unsigned char packet_size;
-	unsigned char checksum;
-	unsigned char packet_type;
-	
-	Buffer_Pull(buf, &packet_size);
-	Buffer_Pull(buf, &checksum);
-	Buffer_Pull(buf, &packet_type);
-	
-	switch (packet_type)
-	{
-		case CMD_SWITCH_OUTPUT:
-			cmd_switch_output(buf, packet_size - 1);
-			break;
-		case CMD_SET_TIME:
-			cmd_set_time(buf, packet_size - 1);
-			break;
-		case CMD_GET_TIME:
-			break;
-		case CMD_SET_TIMER_EVENT:
-			cmd_set_timer_event(buf, packet_size - 1);
-			break;
-		case CMD_GET_TIMER_EVENTS:
-			mucron_list_events();
-			break;
-		case CMD_DELETE_TIMER_EVENT:
-			cmd_delete_timer_event(buf, packet_size - 1);
-			break;
-		case CMD_PING:
-			DSEND(0, "PONG\n");
-			break;
-	}
-}
-
 /*
  * Interrupt Routine : Receive complete
  *
@@ -304,12 +206,13 @@ ISR(USART0_RX_vect)
 		Buffer_Push(&in_buf[0], UDR0);
 	
 	/* do we know the packet size? */
-	if (in_buf[0].count > 1)
+	if (in_buf[0].count > 4)
 	{
 		/* have all the bytes of the packet been received */
-		if (*(in_buf[0].p_out) + HEADER_SIZE == in_buf[0].count)
+		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
+		if (*((uint32_t *)in_buf[0].p_out) == in_buf[0].count)
 		{
-			process_packet(&in_buf[0]);
+			9p_process_message(&in_buf[0]);
 			Buffer_Reset(&in_buf[0]);
 		}
 	}

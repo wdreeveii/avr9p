@@ -1,7 +1,7 @@
 AVRDUDE_PROGRAMMER	:= usbtiny
 TARGET			:= fdioCV2.hex
 ELF				:= fdioCV2.elf
-SRCS				:= main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c
+SRCS				:= 9p.c main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c
 CC				:= avr-gcc
 OBJCOPY			:= avr-objcopy
 

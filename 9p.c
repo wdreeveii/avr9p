@@ -200,6 +200,42 @@ int fidwalk(Fid *fp, char name[28])
 	return 0;
 }
 
+void mkdirent(const DirectoryEntry *dp, uint8_t *dir)
+{
+	memset(dir, 0, DIRLEN);
+	strcpy(dir, dp->name);
+	strcpy(dir + 28, "lego");
+	strcpy(dir + 56, "lego");
+	dir[84] = dp->qid;
+	dir[92] = dp->sub ? 0555 : 0666;
+	dir[93] = dp->sub ? (0555 >> 8) : (0666 >> 8);
+	dir[95] = dp->sub ? 0x80 : 0;
+}
+
+int fidstat(Fid *fp, uint8_t *dir)
+{
+	const DirectoryEntry *dp;
+	if (fp->open)
+		return -1;
+	//ASSERT(fp->qid[0] < QID_MAP_MAX);
+	dp = qid_map[fp->qid[0]];
+	mkdirent(dp, dir);
+	return 1;
+}
+int fidopen(Fid *fp, uint8_t mode)
+{
+	if (fp->open
+	    || (mode & ORCLOSE)
+	    /*|| (mode & OTRUNC) */)
+		return 0;
+	if (fp->qid[3] && (mode == OWRITE || mode == ORDWR))
+		/* can't write directories */
+		return 0;
+	fp->open = 1;
+	return 1;
+}
+
+
 void send_error_reply(uint16_t tag, char *msg)
 {
 	uint16_t len = strlen(msg);
@@ -319,6 +355,22 @@ void 9p_process_message(buffer_t *msg)
 			else
 				send_fid_reply(Rwalk, tag, fid, fp->qid, 8);
 			return;
+		case Tstat:
+			if (!fidstat(fp, dir))
+				send_error_reply(tag, "can't stat");
+			else
+				send_fid_reply(Rstat, tag, fid, dir, 116);
+			break;
+		case Tcreate:
+			send_error_reply(tag, "can't create");
+			break;
+		case Topen:
+		//ASSERT(len == 1);
+			if (!fidopen(fp, msg[0]))
+				send_error_reply(tag, "can't open");
+			else
+				send_fid_reply(Ropen, tag, fid, fp->qid, 8);
+			break;
 	}
 	
 }

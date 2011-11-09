@@ -1,9 +1,9 @@
 AVRDUDE_PROGRAMMER	:= usbtiny
-TARGET			:= fdioCV2.hex
-ELF				:= fdioCV2.elf
+TARGET				:= fdioCV2.hex
+ELF					:= fdioCV2.elf
 SRCS				:= main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c
-CC				:= avr-gcc
-OBJCOPY			:= avr-objcopy
+CC					:= avr-gcc
+OBJCOPY				:= avr-objcopy
 
 CCFLAGS = -std=c99 -mmcu=atmega644pa -Os
 AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m644p

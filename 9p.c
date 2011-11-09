@@ -1,11 +1,10 @@
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "9p.h"
 #include "buffer.h"
-
-typedef struct Readable {
-	Reader *reader;
-} Readable;
-
-Readable readable[3];
+#include "usart.h"
 
 typedef struct Reader {
 	uint16_t tag;
@@ -16,6 +15,12 @@ typedef struct Reader {
 } Reader;
 
 uint8_t reader_count;
+
+typedef struct Readable {
+	Reader *reader;
+} Readable;
+
+Readable readable[3];
 
 void readerfree(Reader *rp)
 {
@@ -58,12 +63,31 @@ void flushtag(uint16_t oldtag)
 	allreaderlistfindanddestroy(matchtag, (void *)oldtag);
 }
 
-int16_t demowrite(const DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *data)
+#define QID_ROOT 0
+#define QID_MOTOR 1
+#define QID_MOTOR_0 2
+#define QID_MOTOR_1 3
+#define QID_MOTOR_2 4
+#define QID_MOTOR_012 5
+#define QID_SENSOR 6
+#define QID_SENSOR_0 7
+#define QID_SENSOR_1 8
+#define QID_SENSOR_2 9
+
+typedef struct DirectoryEntry {
+	char *name;
+	uint8_t qid;
+	const struct DirectoryEntry *sub;
+	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count);
+	int16_t (*write)(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *buf);
+} DirectoryEntry;
+
+int16_t demowrite(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *data)
 {
 	return count;
 }
 
-int16_t sensorread(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count)
+int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count)
 {
 
 	return 0;
@@ -117,15 +141,6 @@ const DirectoryEntry *qid_map[] = {
 #define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
 
 const uint8_t qid_root[8] = { QID_ROOT, 0, 0, 0x80 };
-
-typedef struct DirectoryEntry {
-	char *name;
-	uint8_t qid;
-	const struct DirectoryEntry *sub;
-	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count);
-	int16_t (*write)(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *buf);
-} DirectoryEntry;
-
 
 typedef struct Fid {
 	struct Fid *next;
@@ -282,7 +297,7 @@ void send_fid_reply(uint8_t type, uint16_t tag, uint16_t fid, uint8_t *msg, uint
 }
 
 
-void 9p_process_message(buffer_t *msg)
+void lib9p_process_message(buffer_t *msg)
 {
 	uint32_t len = *((uint32_t *)(msg->p_out));
 	msg->p_out += 4;
@@ -373,134 +388,4 @@ void 9p_process_message(buffer_t *msg)
 			break;
 	}
 	
-}
-
-void
-process_styx_message(unsigned char *msg, short len)
-{
-	unsigned char type;
-	ushort tag, oldtag, fid, newfid;
-	ushort offset, count;
-	short extra;
-	Fid *fp, *nfp;
-	short written;
-	uchar buf[2];
-
-	ASSERT(len >= 3);
-	
-	type = *msg++; len--;
-	tag = (msg[1] << 8) | msg[0]; len -= 2; msg += 2;
-
-	switch (type) {
-	case Tversion:
-		send_reply(Rversion, tag, 0, 0);
-		goto done;
-	case Tflush:
-		ASSERT(len == 2);
-		oldtag = (msg[1] << 8) | msg[0];
-		flushtag(oldtag);
-		send_reply(Rflush, tag, 0, 0);
-		goto done;
-	}
-	/* all other messages take a fid as well */
-	ASSERT(len >= 2);
-	fid = (msg[1] << 8) | msg[0]; len -= 2; msg += 2;
-	fp = fidfind(fid);
-	
-	switch (type) {
-	case Tattach:
-		ASSERT(len == 56);
-		if (fp) {
-		fid_in_use:
-			send_error_reply(tag, "fid in use");
-		}
-		else {
-			fp = fidcreate(fid, qid_root);
-			send_fid_reply(Rattach, tag, fid, fp->qid, 8);
-		}
-		break;
-	case Tclunk:
-	case Tremove:
-		ASSERT(len == 0);
-		if (!fp) {
-		no_such_fid:
-			send_error_reply(tag, "no such fid");
-		}
-		else {
-			fiddelete(fp);
-			if (type == Tremove)
-				send_error_reply(tag, "can't remove");
-			else
-				send_fid_reply(Rclunk, tag, fid, 0, 0);
-		}
-		break;
-	case Tclone:
-		ASSERT(len == 2);
-		newfid = (msg[1] << 8) | msg[0];
-		nfp = fidfind(newfid);
-		if (!fp)
-			goto no_such_fid;
-		if (fp->open) {
-			send_error_reply(tag, "can't clone");
-			break;
-		}
-		if (nfp)
-			goto fid_in_use;
-		nfp = fidcreate(newfid, fp->qid);
-		send_fid_reply(Rclone, tag, fid, 0, 0);
-		break;
-	case Twalk:
-		ASSERT(len == 28);
-		if (!fidwalk(fp, msg))
-			send_error_reply(tag, "no such name");
-		else
-			send_fid_reply(Rwalk, tag, fid, fp->qid, 8);
-		break;
-	case Tstat:
-		ASSERT(len == 0);
-		if (!fidstat(fp, dir))
-			send_error_reply(tag, "can't stat");
-		else
-			send_fid_reply(Rstat, tag, fid, dir, 116);
-		break;
-		ASSERT(len == 0);
-	case Tcreate:
-		ASSERT(len == 33);
-		send_error_reply(tag, "can't create");
-		break;
-	case Topen:
-		ASSERT(len == 1);
-		if (!fidopen(fp, msg[0]))
-			send_error_reply(tag, "can't open");
-		else
-			send_fid_reply(Ropen, tag, fid, fp->qid, 8);
-		break;
-	case Tread:
-		ASSERT(len == 10);
-		offset = (msg[1] << 8) | msg[0];
-		count = (msg[9] << 8) | msg[8];
-		if (fidread(fp, tag, offset, count) < 0)
-			send_error_reply(tag, "can't read");
-		break;
-	case Twrite:
-		ASSERT(len >= 11);
-		offset = (msg[1] << 8) | msg[0];
-		count = (msg[9] << 8) | msg[8];
-		msg += 11;
-		len -= 11;
-		ASSERT(count == len);
-		written = fidwrite(fp, offset, count, msg);
-		if (written < 0)
-			send_error_reply(tag, "can't write");
-		else {
-			buf[0] = written;
-			buf[1] = written >> 8;
-			send_fid_reply(Rwrite, tag, fid, buf, 2);
-		}
-		break;
-	default:
-		FATAL;
-	}
-done:
-	;
 }

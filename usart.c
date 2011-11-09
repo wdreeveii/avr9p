@@ -6,6 +6,7 @@
 #include "config.h"
 #include "iocontrol.h"
 #include "rtc.h"
+#include "9p.h"
 #include <string.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -212,7 +213,7 @@ ISR(USART0_RX_vect)
 		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
 		if (*((uint32_t *)in_buf[0].p_out) == in_buf[0].count)
 		{
-			9p_process_message(&in_buf[0]);
+			lib9p_process_message(&in_buf[0]);
 			Buffer_Reset(&in_buf[0]);
 		}
 	}

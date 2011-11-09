@@ -58,7 +58,7 @@ enum
 	OEXCL   = 0x1000,	// or'ed in, exclusive use (create only) 
 	OLOCK   = 0x2000,	// or'ed in, lock after opening 
 	OAPPEND = 0x4000,	// or'ed in, append only 
-}
+};
 
 enum
 {
@@ -66,7 +66,7 @@ enum
 	AEXEC   = 1,	// execute access 
 	AWRITE  = 2,	// write access 
 	AREAD   = 4,	// read access 
-}
+};
 
 
 // Qid.type
@@ -80,7 +80,7 @@ enum
 	QTTMP       =0x04,	// type bit for non-backed-up file 
 	QTSYMLINK   =0x02,	// type bit for symbolic link 
 	QTFILE      =0x00,	// type bits for plain file 
-}
+};
 
 // Dir.mode
 
@@ -95,7 +95,7 @@ enum
 	DMREAD      =0x4,			// mode bit for read permission 
 	DMWRITE     =0x2,			// mode bit for write permission 
 	DMEXEC      =0x1,			// mode bit for execute permission 
-}
+};
 
 /*DMSYMLINK   =0x02000000  # mode bit for symbolic link (Unix, 9P2000.u) 
 DMDEVICE    =0x00800000  # mode bit for device file (Unix, 9P2000.u) 
@@ -104,5 +104,5 @@ DMSOCKET    =0x00100000  # mode bit for socket (Unix, 9P2000.u)
 DMSETUID    =0x00080000  # mode bit for setuid (Unix, 9P2000.u) 
 DMSETGID    =0x00040000  # mode bit for setgid (Unix, 9P2000.u)
 */
-
+void lib9p_process_message(buffer_t *msg);
 #endif

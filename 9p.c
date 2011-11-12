@@ -6,6 +6,9 @@
 #include "buffer.h"
 #include "usart.h"
 
+void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
+void send_error_reply(uint16_t tag, char *msg);
+
 typedef struct Reader {
 	uint16_t tag;
 	uint16_t fid;
@@ -62,22 +65,27 @@ void flushtag(uint16_t oldtag)
 	/* a little inefficient this - there can be at most one match! */
 	allreaderlistfindanddestroy(matchtag, (void *)oldtag);
 }
-
 #define QID_ROOT 0
 #define QID_MOTOR 1
 #define QID_MOTOR_0 2
-#define QID_MOTOR_1 3
-#define QID_MOTOR_2 4
-#define QID_MOTOR_012 5
-#define QID_SENSOR 6
-#define QID_SENSOR_0 7
-#define QID_SENSOR_1 8
-#define QID_SENSOR_2 9
+#define QID_SENSOR 3
+#define QID_SENSOR_0 4
+
+#define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
+
+typedef struct Qid
+{
+	uint64_t	path;
+	uint32_t	vers;
+	uint8_t		type;
+} Qid;
+
+Qid qid_root = {QID_ROOT, 0, QTDIR};
 
 typedef struct DirectoryEntry {
-	char *name;
-	uint8_t qid;
-	const struct DirectoryEntry *sub;
+	char	*name;
+	Qid		qid;
+	const	struct DirectoryEntry *sub;
 	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count);
 	int16_t (*write)(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *buf);
 } DirectoryEntry;
@@ -93,35 +101,30 @@ int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, ui
 	return 0;
 }
 
-#define QID_ROOT 0
+
 const DirectoryEntry dir_root[], dir_slash[];
 
 const DirectoryEntry dir_motor[] = {
-	{ "..", QID_ROOT, dir_root },
-	{ "0", QID_MOTOR_0,	0, 0, demowrite },
-	{ "1", QID_MOTOR_1,	0, 0, demowrite },
-	{ "2", QID_MOTOR_2,	0, 0, demowrite },
-	{ "012", QID_MOTOR_012, 0, 0, demowrite },
+	{ "..", {QID_ROOT, 		0, QTDIR}, dir_root },
+	{ "0", 	{QID_MOTOR_0,	0, QTFILE}, 0, 0, demowrite },
 	{ 0 }
 };
 
 const DirectoryEntry dir_sensor[] = {
-	{ "..", QID_ROOT, dir_root },
-	{ "0", QID_SENSOR_0,	0, demoread, demowrite },
-	{ "1", QID_SENSOR_1,	0, demoread, demowrite },
-	{ "2", QID_SENSOR_2,	0, demoread, demowrite },
+	{ "..", {QID_ROOT, 		0, QTDIR}, dir_root },
+	{ "0", 	{QID_SENSOR_0,	0, QTFILE}, 0, demoread, demowrite },
 	{ 0 }
 };
 
 const DirectoryEntry dir_root[] = {
-	{ "..", QID_ROOT, dir_slash },
-	{ "motor", QID_MOTOR, dir_motor },
-	{ "sensor", QID_SENSOR, dir_sensor },
+	{ "..", 	{QID_ROOT, 	0, QTDIR}, dir_slash },
+	{ "motor", 	{QID_MOTOR, 0, QTDIR}, dir_motor },
+	{ "sensor", {QID_SENSOR,0, QTDIR}, dir_sensor },
 	{ 0 }
 };
 
 const DirectoryEntry dir_slash[] = {
-	{ "/", QID_ROOT, dir_root },
+	{ "/", {QID_ROOT, 0, QTDIR}, dir_root },
 	{ 0 }
 };
 
@@ -129,29 +132,20 @@ const DirectoryEntry *qid_map[] = {
 	/* QID_ROOT */		&dir_slash[0],
 	/* QID_MOTOR */		&dir_root[1],
 	/* QID_MOTOR_0 */	&dir_motor[1],
-	/* QID_MOTOR_1 */	&dir_motor[2],
-	/* QID_MOTOR_2 */	&dir_motor[3],
-	/* QID_MOTOR_012 */	&dir_motor[4],
 	/* QID_SENSOR */	&dir_root[2],
 	/* QID_SENSOR_0 */	&dir_sensor[1],
-	/* QID_SENSOR_1 */	&dir_sensor[2],
-	/* QID_SENSOR_2 */	&dir_sensor[3],
 };
-
-#define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
-
-const uint8_t qid_root[8] = { QID_ROOT, 0, 0, 0x80 };
 
 typedef struct Fid {
 	struct Fid *next;
-	uint16_t fid;
+	uint32_t fid;
 	uint8_t open;
-	uint8_t qid[8];
+	Qid		qid;
 } Fid;
 
 Fid *fids;
 
-Fid * fidfind(uint16_t fid)
+Fid * findfid(uint32_t fid)
 {
 	Fid *fp;
 	for (fp = fids; fp && fp->fid != fid; fp = fp->next)
@@ -159,7 +153,7 @@ Fid * fidfind(uint16_t fid)
 	return fp;
 }
 
-Fid * fidcreate(uint16_t fid, const uint8_t qid[8])
+Fid * fidcreate(uint32_t fid, const Qid *qid)
 {
 	Fid *fp;
 	fp = malloc(sizeof(Fid));
@@ -167,7 +161,7 @@ Fid * fidcreate(uint16_t fid, const uint8_t qid[8])
 	fp->open = 0;
 	fp->fid = fid;
 	fp->next = fids;
-	memcpy(fp->qid, qid, 8);
+	fp->qid = *qid;
 	fids = fp;
 	return fp;
 }
@@ -195,55 +189,133 @@ void fiddelete(Fid *fp)
 	return;
 }
 
-int fidwalk(Fid *fp, char name[28])
+void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 {
 	const DirectoryEntry *sdp;
 	const DirectoryEntry *dp;
+	uint16_t namesize = 0;
+	uint16_t walks = numwalks;
+	
+	struct walklist {
+		uint16_t size;
+		Qid		walklist[MAXWELEM];	
+	} data;
+	uint8_t walklistend = 0;
+	uint8_t filefound = 0;
+	
+	if (numwalks == 0)
+	{
+		send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
+		return;
+	
+	}
 
-	if (fp->open)
-		return -1;
-	//ASSERT(fp->qid[0] < QID_MAP_MAX);
-	dp = qid_map[fp->qid[0]];
+	dp = qid_map[fp->qid.path];
 	if (dp->sub == 0)
-		return -1;
-	for (sdp = dp->sub; sdp->name; sdp++)
-		if (strcmp(sdp->name, name) == 0) {
-			fp->qid[0] = sdp->qid;
-			fp->qid[3] = sdp->sub ? 0x80 : 0;
-			return 1;
+	{
+		send_error_reply(tag, "Not a directory.");
+		return;
+	}
+	
+	for (; walks > 0; walks--)
+	{
+		namesize = *((uint16_t *)(namesarr));
+		filefound = 0;
+		if (dp == qid_map[QID_ROOT] && strncmp(namesarr + 2, "..", 2))
+		{
+			data.walklist[walklistend++] = dp->qid;
+			goto continue_loop;
 		}
-	return 0;
+			
+		// this is weird, requires all sub dirs to be listed right after parent dir in qid_map
+		for (sdp = dp->sub; sdp->name; sdp++)
+		{
+			if (strncmp(sdp->name, namesarr + 2, namesize) == 0) {
+				filefound = 1;
+				data.walklist[walklistend++] = sdp->qid;
+				dp = sdp;
+				break;
+			}
+		}
+		if (walks == numwalks && !filefound)
+		{
+			send_error_reply(tag, "File not found.");
+			return;
+		}
+		continue_loop:
+		namesarr += 2 + namesize;
+	}
+	
+	if (walklistend == numwalks)
+	{
+		fp->qid = data.walklist[walklistend - 1];
+	}
+	
+	data.size = walklistend;
+	
+	send_reply(Rwalk, tag, (uint8_t *)&data, 2 + sizeof(Qid)*walklistend);
+	
+	return;
 }
 
-void mkdirent(const DirectoryEntry *dp, uint8_t *dir)
+void fidstat(uint16_t tag, Fid *fp)
 {
-	memset(dir, 0, DIRLEN);
-	strcpy(dir, dp->name);
-	strcpy(dir + 28, "lego");
-	strcpy(dir + 56, "lego");
-	dir[84] = dp->qid;
-	dir[92] = dp->sub ? 0555 : 0666;
-	dir[93] = dp->sub ? (0555 >> 8) : (0666 >> 8);
-	dir[95] = dp->sub ? 0x80 : 0;
-}
-
-int fidstat(Fid *fp, uint8_t *dir)
-{
+	struct stat {
+		uint16_t size;
+		uint16_t type;
+		uint32_t dev;
+		uint8_t qidtype;
+		uint32_t qidvers;
+		uint64_t qidpath;
+		uint32_t mode;
+		uint32_t atime;
+		uint32_t mtime;
+		uint64_t length;
+		uint8_t strings[100];
+	} data = {};
 	const DirectoryEntry *dp;
-	if (fp->open)
-		return -1;
-	//ASSERT(fp->qid[0] < QID_MAP_MAX);
-	dp = qid_map[fp->qid[0]];
-	mkdirent(dp, dir);
-	return 1;
+	uint16_t stringlen = 0;
+	uint8_t *spos;
+	
+	dp = qid_map[fp->qid.path];
+	data.qidtype = dp->qid.type;
+	data.qidvers = dp->qid.vers;
+	data.qidpath = dp->qid.path;
+	data.mode |= ((uint32_t)(dp->qid.type & 0xFC)) << 24;
+	data.mode |= dp->sub ? 0555 : 0666;
+	// data.atime = time();
+	// data.mtime = time();
+	
+	spos = data.strings;
+	*((uint16_t *)(spos)) = stringlen = strlen(dp->name);
+	memcpy(spos + 2, dp->name, stringlen);
+	
+	spos += 2 + stringlen;
+	
+	*((uint16_t *)(spos)) = 3;
+	memcpy(spos + 2, "sys", 3);
+	spos += 5;
+	
+	*((uint16_t *)(spos)) = 3;
+	memcpy(spos + 2, "sys", 3);
+	spos += 5;
+	
+	*((uint16_t *)(spos)) = 3;
+	memcpy(spos + 2, "sys", 3);
+	spos += 5;
+	
+	data.size = stringlen = 41 + (spos - data.strings);
+	
+	send_reply(Rstat, tag, (uint8_t *)&data, stringlen);
 }
+
 int fidopen(Fid *fp, uint8_t mode)
 {
 	if (fp->open
 	    || (mode & ORCLOSE)
 	    /*|| (mode & OTRUNC) */)
 		return 0;
-	if (fp->qid[3] && (mode == OWRITE || mode == ORDWR))
+	if (fp->qid.type && (mode == OWRITE || mode == ORDWR))
 		/* can't write directories */
 		return 0;
 	fp->open = 1;
@@ -280,7 +352,7 @@ void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 	USART_Send(0, data, 7 + len);
 }
 
-void send_fid_reply(uint8_t type, uint16_t tag, uint16_t fid, uint8_t *msg, uint16_t len)
+void send_fid_reply(uint8_t type, uint16_t tag, uint32_t fid, uint8_t *msg, uint16_t len)
 {
 	uint8_t data[BUFFER_SIZE];
 	/* 9 = size[4]type[1]tag[2]fid[2] */
@@ -299,12 +371,15 @@ void send_fid_reply(uint8_t type, uint16_t tag, uint16_t fid, uint8_t *msg, uint
 
 void lib9p_process_message(buffer_t *msg)
 {
+	uint8_t reply[sizeof(Qid) + 4]; // 12 for Tversion, 17 for Topen
+	uint16_t oldtag; 	// Tflush
 	uint32_t len = *((uint32_t *)(msg->p_out));
+	uint32_t newfid; // Twalk
 	msg->p_out += 4;
 	msg->count -= 4;
 	
 	uint8_t type;
-	buffer_pull(msg, &type);
+	Buffer_Pull(msg, &type);
 	
 	uint16_t tag = *((uint16_t *)(msg->p_out));
 	msg->p_out += 2;
@@ -313,7 +388,6 @@ void lib9p_process_message(buffer_t *msg)
 	switch (type)
 	{
 		case Tversion:
-			uint8_t reply[12];
 			*((uint32_t *)reply) = BUFFER_SIZE;
 			*((uint16_t *)(reply + 4)) = 6;
 			memcpy(reply + 6, "9P2000", 6);
@@ -321,7 +395,7 @@ void lib9p_process_message(buffer_t *msg)
 			send_reply(Rversion, tag, reply, 12);
 			return;
 		case Tflush:
-			uint16_t oldtag = *((uint16_t *) (msg->p_out));
+			oldtag = *((uint16_t *) (msg->p_out));
 			flushtag(oldtag);
 			send_reply(Rflush, tag, 0, 0);
 			return;
@@ -330,9 +404,9 @@ void lib9p_process_message(buffer_t *msg)
 			return;
 	}
 	
-	uint16_t fid = *((uint16_t *) (msg->p_out));
-	msg->p_out += 2;
-	msg->count -= 2;
+	uint32_t fid = *((uint32_t *) (msg->p_out));
+	msg->p_out += 4;
+	msg->count -= 4;
 	
 	Fid *fp = findfid(fid);
 	
@@ -344,9 +418,13 @@ void lib9p_process_message(buffer_t *msg)
 				send_error_reply(tag, "fid in use");	
 			}
 			else
-			{
-				fp = fidcreate(fid, qid_root);
-				send_fid_reply(Rattach, tag, fid, fp->qid, 8);
+			{	// other fields in this transaction
+				// afid[4] -- no auth
+				// uname[s] -- no users
+				// aname[s] -- no other filesystems
+				
+				fp = fidcreate(fid, &qid_root);
+				send_reply(Rattach, tag, (uint8_t *) &fp->qid, sizeof(Qid));
 			}
 			return;
 		case Tclunk:
@@ -365,26 +443,51 @@ void lib9p_process_message(buffer_t *msg)
 			}
 			return;
 		case Twalk:
-			if (!fidwalk(fp, msg))
-				send_error_reply(tag, "no such name");
+			// other fields in this transaction
+			// newfid[4]
+			// nwname[2]
+			// nwname*(wname[s])
+			newfid = *((uint32_t *)(msg->p_out));
+	
+			if (fp->open)
+			{
+				send_error_reply(tag, "Fid opened");
+				return;
+			}
+			if (fid  != newfid)
+			{
+				if ( findfid( newfid ) )
+				{
+					send_error_reply(tag, "New fid in use.");
+					return;
+				}
+					
+				fidwalk ( tag,
+					fidcreate( newfid, &fp->qid ),
+					*((uint16_t *) (msg->p_out + 4)),
+					msg->p_out + 6);
+			}
 			else
-				send_fid_reply(Rwalk, tag, fid, fp->qid, 8);
+			{
+				fidwalk(tag, fp, *((uint16_t *) (msg->p_out + 4)), msg->p_out + 6);	
+			}
 			return;
 		case Tstat:
-			if (!fidstat(fp, dir))
-				send_error_reply(tag, "can't stat");
-			else
-				send_fid_reply(Rstat, tag, fid, dir, 116);
+			fidstat(tag, fp);
 			break;
 		case Tcreate:
 			send_error_reply(tag, "can't create");
 			break;
 		case Topen:
-		//ASSERT(len == 1);
-			if (!fidopen(fp, msg[0]))
+			if (!fidopen(fp, msg->p_out[0]))
 				send_error_reply(tag, "can't open");
 			else
-				send_fid_reply(Ropen, tag, fid, fp->qid, 8);
+			{
+				// send qid and iounit (maximum length to be sent before the request is segmented)
+				memcpy(reply, (uint8_t *)&fp->qid, sizeof(Qid));
+				*((uint32_t *)(reply + sizeof(Qid))) = BUFFER_SIZE - 23;
+				send_reply(Ropen, tag, reply, sizeof(Qid) + 4);
+			}
 			break;
 	}
 	

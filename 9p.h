@@ -2,6 +2,12 @@
 #ifndef _9P_H
 #define _9P_H
 
+#include "buffer.h"
+
+
+/* Maximum walk elements */
+#define MAXWELEM 16
+
 /* STATFIXLEN includes leading 16-bit count */
 /* The count, however, excludes itself; total size is BIT16SZ+count */
 #define STATFIXLEN	(BIT16SZ+QIDSZ+5*BIT16SZ+4*BIT32SZ+1*BIT64SZ)	/* amount of fixed length data in a stat buffer */
@@ -105,4 +111,5 @@ DMSETUID    =0x00080000  # mode bit for setuid (Unix, 9P2000.u)
 DMSETGID    =0x00040000  # mode bit for setgid (Unix, 9P2000.u)
 */
 void lib9p_process_message(buffer_t *msg);
+
 #endif

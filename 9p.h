@@ -7,6 +7,10 @@
 
 /* Maximum walk elements */
 #define MAXWELEM 16
+/* Maximum entries in a directory */
+#define MAXDIRENTRIES 16
+
+#define IOUNIT BUFFER_SIZE - 23
 
 /* STATFIXLEN includes leading 16-bit count */
 /* The count, however, excludes itself; total size is BIT16SZ+count */

@@ -9,61 +9,10 @@
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
 void send_error_reply(uint16_t tag, char *msg);
 
-typedef struct Reader {
-	uint16_t tag;
-	uint16_t fid;
-	uint16_t offset;
-	uint16_t count;
-	struct Reader *next;
-} Reader;
-
-uint8_t reader_count;
-
-typedef struct Readable {
-	Reader *reader;
-} Readable;
-
-Readable readable[3];
-
-void readerfree(Reader *rp)
-{
-	free(rp);
-	reader_count--;
-}
-
-
-void readerlistfindanddestroy(Reader **rpp, int (*action)(Reader *rp, void *magic), void *magic)
-{
-	while (*rpp) {
-		Reader *rp = *rpp;
-		if ((*action)(rp, magic)) {
-			*rpp = rp->next;
-			readerfree(rp);
-		}
-		else
-			rpp = &(rp->next);
-	}
-}
-
-void allreaderlistfindanddestroy(int (*action)(Reader *rp, void *magic), void *magic)
-{
-	short i;
-	for (i = 0; i < 3; i++)
-		readerlistfindanddestroy(&readable[i].reader, action, magic);
-}
-
-int matchtag(Reader *rp, void *oldtag)
-{
-	if (rp->tag == (uint16_t)oldtag) {
-		return 1;
-	}
-	return 0;
-}
-
 void flushtag(uint16_t oldtag)
 {
-	/* a little inefficient this - there can be at most one match! */
-	allreaderlistfindanddestroy(matchtag, (void *)oldtag);
+	// no pending requests with a stored tag that need to be removed.
+	
 }
 #define QID_ROOT 0
 #define QID_MOTOR 1
@@ -86,16 +35,16 @@ typedef struct DirectoryEntry {
 	char	*name;
 	Qid		qid;
 	const	struct DirectoryEntry *sub;
-	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count);
-	int16_t (*write)(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *buf);
+	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count);
+	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t offset, uint32_t count, uint8_t *buf);
 } DirectoryEntry;
 
-int16_t demowrite(const struct DirectoryEntry *dp, uint16_t offset, uint16_t count, uint8_t *data)
+int16_t demowrite(const struct DirectoryEntry *dp, uint64_t offset, uint32_t count, uint8_t *data)
 {
 	return count;
 }
 
-int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint16_t fid, uint16_t offset, uint16_t count)
+int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count)
 {
 
 	return 0;
@@ -166,19 +115,11 @@ Fid * fidcreate(uint32_t fid, const Qid *qid)
 	return fp;
 }
 
-int matchfp(Reader *rp, void *magic)
-{
-	if (rp->fid == ((Fid *)magic)->fid) {
-		return 1;
-	}
-	return 0;
-}
-
 void fiddelete(Fid *fp)
 {
 	Fid **fpp;
 	/* clobber any outstanding reads on this fid */
-	allreaderlistfindanddestroy(matchfp, fp);
+	//allreaderlistfindanddestroy(matchfp, fp);
 	/* now clobber the fid */
 	for (fpp = &fids; *fpp; fpp = &(*fpp)->next)
 		if (*fpp == fp) {
@@ -258,35 +199,35 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	return;
 }
 
-void fidstat(uint16_t tag, Fid *fp)
+typedef struct Stat {
+	uint16_t size;
+	uint16_t type;
+	uint32_t dev;
+	uint8_t qidtype;
+	uint32_t qidvers;
+	uint64_t qidpath;
+	uint32_t mode;
+	uint32_t atime;
+	uint32_t mtime;
+	uint64_t length;
+	uint8_t strings[100];
+} Stat;
+
+#define STAT_HEADER_SIZE 58
+void mkstat(const DirectoryEntry * dp, Stat * data)
 {
-	struct stat {
-		uint16_t size;
-		uint16_t type;
-		uint32_t dev;
-		uint8_t qidtype;
-		uint32_t qidvers;
-		uint64_t qidpath;
-		uint32_t mode;
-		uint32_t atime;
-		uint32_t mtime;
-		uint64_t length;
-		uint8_t strings[100];
-	} data = {};
-	const DirectoryEntry *dp;
 	uint16_t stringlen = 0;
 	uint8_t *spos;
 	
-	dp = qid_map[fp->qid.path];
-	data.qidtype = dp->qid.type;
-	data.qidvers = dp->qid.vers;
-	data.qidpath = dp->qid.path;
-	data.mode |= ((uint32_t)(dp->qid.type & 0xFC)) << 24;
-	data.mode |= dp->sub ? 0555 : 0666;
+	data->qidtype = dp->qid.type;
+	data->qidvers = dp->qid.vers;
+	data->qidpath = dp->qid.path;
+	data->mode |= ((uint32_t)(dp->qid.type & 0xFC)) << 24;
+	data->mode |= dp->sub ? 0555 : 0666;
 	// data.atime = time();
 	// data.mtime = time();
 	
-	spos = data.strings;
+	spos = data->strings;
 	*((uint16_t *)(spos)) = stringlen = strlen(dp->name);
 	memcpy(spos + 2, dp->name, stringlen);
 	
@@ -304,12 +245,23 @@ void fidstat(uint16_t tag, Fid *fp)
 	memcpy(spos + 2, "sys", 3);
 	spos += 5;
 	
-	data.size = stringlen = 41 + (spos - data.strings);
-	
-	send_reply(Rstat, tag, (uint8_t *)&data, stringlen);
+	data->size = 41 + (spos - data->strings);
 }
 
-int fidopen(Fid *fp, uint8_t mode)
+void fidstat(uint16_t tag, Fid *fp)
+{
+ 	Stat data = {};
+	const DirectoryEntry *dp;
+	
+	dp = qid_map[fp->qid.path];
+	
+	mkstat(dp, &data);
+	
+	send_reply(Rstat, tag, (uint8_t *)&data, data.size);
+}
+
+
+int8_t fidopen(Fid *fp, uint8_t mode)
 {
 	if (fp->open
 	    || (mode & ORCLOSE)
@@ -320,6 +272,74 @@ int fidopen(Fid *fp, uint8_t mode)
 		return 0;
 	fp->open = 1;
 	return 1;
+}
+
+int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t offset, uint32_t count)
+{
+	const DirectoryEntry *sdp;
+	uint8_t reply[count + 4];
+	uint8_t *replyptr = reply + 4;
+	
+	Stat data = {};
+	
+	uint32_t statsize = 0;
+	
+	uint16_t numcpybytes = 0;
+	
+	for (sdp = dp->sub; sdp->name; sdp++)
+	{
+		statsize += STAT_HEADER_SIZE + strlen(sdp->name);
+
+		if (offset > statsize)
+			continue;
+			
+		// offset <= statsize
+		mkstat(sdp, &data);
+		
+		if (count > statsize - offset)
+		{
+			numcpybytes = statsize - offset;
+			count -= numcpybytes;
+		}
+		memcpy(replyptr, 
+				(((uint8_t *)(&data)) + (data.size - numcpybytes)), 
+				numcpybytes);
+		replyptr += numcpybytes;
+		*((uint32_t *)(reply)) += numcpybytes;
+	}
+	send_reply(Rread, tag, reply, data.size);
+	return 0;
+}
+
+int8_t fidread(uint16_t tag, Fid *fp, uint64_t offset, uint32_t count)
+{
+	const DirectoryEntry *dp;
+
+	dp = qid_map[fp->qid.path];
+
+	if (fp->qid.type & QTDIR) {
+		if (!fp->open)
+			return -1;
+		return fidreaddir(tag, dp, offset, count);
+	}
+	/* right, that's that out of the way */
+	if (!dp->read)
+		return -1;
+	return (*dp->read)(dp, tag, offset, count);
+}
+
+int32_t fidwrite(Fid *fp, uint64_t offset, uint32_t count, uint8_t *buf)
+{
+	const DirectoryEntry *dp;
+	if (fp->qid.type & QTDIR)
+		return -1;		/* can't write directories */
+	if (!fp->open)
+		return -1;
+
+	dp = qid_map[fp->qid.path];
+	if (!dp->write)
+		return -1;		/* no write method */
+	return (*dp->write)(dp, offset, count, buf);
 }
 
 
@@ -375,6 +395,7 @@ void lib9p_process_message(buffer_t *msg)
 	uint16_t oldtag; 	// Tflush
 	uint32_t len = *((uint32_t *)(msg->p_out));
 	uint32_t newfid; // Twalk
+	int32_t written; // Twrite
 	msg->p_out += 4;
 	msg->count -= 4;
 	
@@ -401,6 +422,9 @@ void lib9p_process_message(buffer_t *msg)
 			return;
 		case Tauth:
 			send_error_reply(tag, "Auth not required.");
+			return;
+		case Twstat:
+			send_error_reply(tag, "Unable to change file stat.");
 			return;
 	}
 	
@@ -474,19 +498,37 @@ void lib9p_process_message(buffer_t *msg)
 			return;
 		case Tstat:
 			fidstat(tag, fp);
-			break;
+			return;
 		case Tcreate:
-			send_error_reply(tag, "can't create");
-			break;
+			send_error_reply(tag, "Can't create");
+			return;
 		case Topen:
 			if (!fidopen(fp, msg->p_out[0]))
-				send_error_reply(tag, "can't open");
+				send_error_reply(tag, "Can't open");
 			else
 			{
 				// send qid and iounit (maximum length to be sent before the request is segmented)
 				memcpy(reply, (uint8_t *)&fp->qid, sizeof(Qid));
-				*((uint32_t *)(reply + sizeof(Qid))) = BUFFER_SIZE - 23;
+				*((uint32_t *)(reply + sizeof(Qid))) = IOUNIT;
 				send_reply(Ropen, tag, reply, sizeof(Qid) + 4);
+			}
+			return;
+		case Tread:
+			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
+				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
+				
+			if (fidread(tag, fp, *((uint64_t *)(msg->p_out)), *((uint32_t *)(msg->p_out + 8))) < 0)
+				send_error_reply(tag, "Can't read");
+			return;
+		case Twrite:
+			written = fidwrite(fp, 
+								*((uint64_t *)(msg->p_out)),
+								*((uint32_t *)(msg->p_out + 8)), 
+								msg->p_out + 12);
+			if (written < 0)
+				send_error_reply(tag, "can't write");
+			else {
+				send_reply(Rwrite, tag, (uint8_t *)&written, 4);
 			}
 			break;
 	}

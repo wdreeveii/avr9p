@@ -1,3 +1,9 @@
+// 11/13/2011
+// Dedicated to my long friend Matt Brown.
+// AUTHOR: Whitham D. Reeve II
+// Heavily copied from Nigel Roles of Vita Nuova styx.c styx on a brick project.
+// Updated to 9p2000
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

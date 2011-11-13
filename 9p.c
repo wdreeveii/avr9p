@@ -1,8 +1,19 @@
-// 11/13/2011
-// Dedicated to my long friend Matt Brown.
-// AUTHOR: Whitham D. Reeve II
-// Heavily copied from Nigel Roles of Vita Nuova styx.c styx on a brick project.
-// Updated to 9p2000
+/* 9p.c -- 9p synthetic file server
+ * 11/13/2011
+ * Dedicated to my long friend Matt Brown.
+ * AUTHOR: Whitham D. Reeve II
+ * Heavily copied from Nigel Roles of Vita Nuova styx.c styx on a brick project.
+ * Updated to 9p2000 and converted to skelleton for others to extend
+ * 
+ * BEWARE: This code makes heavy use of typecasts that are not safe on all architectures.
+ * 			9p is a little endian formatted protocol, and avr-gcc produces little endian code.
+ *			This was a deliberate and carefully made decision while considering both architecture
+ *			safe and architecture unsafe methods upon examination of the resulting assembly. 
+ *			This will run on a 1mip/mhz @ 20mhz atmega644pa chip with 4k ram. Careful attention has been paid
+ *			to the size of the stack to avoid unnecessary duplication of data such as temporary local variables.
+ *			Internally it stores all data using the native sizes in the 9p2000 specification, 
+ *			and quite a bit of fat may? be trimmed in this area.
+ */
 
 #include <stdint.h>
 #include <stdlib.h>

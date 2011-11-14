@@ -140,15 +140,16 @@ void USART_Send(char port, char *p_data, uint16_t length)
 {
 	uint8_t i = 0;
 	uint8_t chunksize;
-	/* disable interrupts while data is copied into the send buffer */
+
 	while (length)
 	{
+		/* disable interrupts while we access the send buffer */
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
-			i = out_buf[port].count;
+			chunksize = out_buf[port].count;
 		}
 		
-		chunksize = BUFFER_SIZE - i;
+		chunksize = BUFFER_SIZE - chunksize;
 		
 		if (length < chunksize)
 			chunksize = length;

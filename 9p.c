@@ -376,17 +376,16 @@ void send_error_reply(uint16_t tag, char *msg)
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 {
-	uint8_t data[BUFFER_SIZE];
 	/* 7 = size[4]type[1]tag[2] */
-	if (len > BUFFER_SIZE - 7)	
-		len = BUFFER_SIZE - 7;
+	uint8_t data[7];
 	*((uint32_t *)data) = 7 + len;
 	data[4] = type;
 	*((uint16_t *)(data + 5)) = tag;
 	if (msg)
-		memcpy(data + 7, msg, len);
-	
-	USART_Send(0, data, 7 + len);
+	{
+		USART_Send(0, data, 7);
+		USART_Send(0, msg, len);
+	}
 }
 
 

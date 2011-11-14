@@ -135,22 +135,37 @@ void USART_Init(void)
  *  Input : p_data, pointer on data frame to send
  *          length, length of frame
  */
-void USART_Send(char port, char *p_data, unsigned short length)
-{	
-	unsigned short i = 0;
-	
+void USART_Send(char port, char *p_data, uint16_t length)
+{
+	uint8_t i = 0;
+	uint8_t chunksize;
 	/* disable interrupts while data is copied into the send buffer */
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	while (length)
 	{
-		for(i=0; i<length; i++)
-			Buffer_Push(&out_buf[port], *(p_data+i));
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			i = out_buf[port].count;
+		}
+		
+		chunksize = BUFFER_SIZE - i;
+		
+		if (length < chunksize)
+			chunksize = length;
+		
+		length -= chunksize;
+		
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			for(i = 0; i < chunksize; i++)
+				Buffer_Push(&out_buf[port], *(p_data+i));
+		}
+
+			/* Enable UDR Empty interrupt */
+		if (port == 0)
+			UCSR0B |= (1<<UDRIE0);
+		else
+			UCSR1B |= (1<<UDRIE1);
 	}
-	
-	/* Enable UDR Empty interrupt */
-	if (port == 0)
-		UCSR0B |= (1<<UDRIE0);
-	else
-		UCSR1B |= (1<<UDRIE1);
 }
 
 /*

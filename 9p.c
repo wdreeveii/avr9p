@@ -389,22 +389,6 @@ void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 	USART_Send(0, data, 7 + len);
 }
 
-void send_fid_reply(uint8_t type, uint16_t tag, uint32_t fid, uint8_t *msg, uint16_t len)
-{
-	uint8_t data[BUFFER_SIZE];
-	/* 9 = size[4]type[1]tag[2]fid[2] */
-	if (len > BUFFER_SIZE - 9)
-		len = BUFFER_SIZE - 9;
-	*((uint32_t *)data) = 9 + len;
-	data[4] = type;
-	*((uint16_t *)(data + 5)) = tag;
-	*((uint16_t *)(data + 7)) = fid;
-	if (msg)
-		memcpy(data + 9, msg, len);
-		
-	USART_Send(0, data, 9 + len);
-}
-
 
 void lib9p_process_message(buffer_t *msg)
 {

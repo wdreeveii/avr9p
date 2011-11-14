@@ -359,19 +359,21 @@ int32_t fidwrite(Fid *fp, uint64_t offset, uint32_t count, uint8_t *buf)
 	return (*dp->write)(dp, offset, count, buf);
 }
 
+/* size[4]type[1]tag[2]data_size[2]*/
+#define ERR_HEADER_SIZE
 
 void send_error_reply(uint16_t tag, char *msg)
 {
 	uint16_t len = strlen(msg);
-	uint8_t data[BUFFER_SIZE];
+	uint8_t data[ERR_HEADER_SIZE];
 	/* size[4]type[1]tag[2]data_size[2]data[len] */
-	*((uint32_t *)data) = 9 + len;	
+	*((uint32_t *)data) = ERR_HEADER_SIZE + len;	
 	data[4] = Rerror;
 	*((uint16_t *)(data + 5)) = tag;
 	*((uint16_t *)(data + 7)) = len;
-	memcpy(data + 9, msg, len);
 	
-	USART_Send(0, data, 9 + len);
+	USART_Send(0, data, ERR_HEADER_SIZE);
+	USART_Send(0, msg, len);
 }
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)

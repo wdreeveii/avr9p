@@ -3,7 +3,7 @@
 #define _BUFFER_H
 
 /*  Struct buffer_t  */
-#define BUFFER_SIZE 64
+#define BUFFER_SIZE 256
 
 typedef struct{
   unsigned char tab[BUFFER_SIZE];

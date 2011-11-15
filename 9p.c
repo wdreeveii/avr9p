@@ -360,7 +360,7 @@ int32_t fidwrite(Fid *fp, uint64_t offset, uint32_t count, uint8_t *buf)
 }
 
 /* size[4]type[1]tag[2]data_size[2]*/
-#define ERR_HEADER_SIZE
+#define ERR_HEADER_SIZE 9
 
 void send_error_reply(uint16_t tag, char *msg)
 {

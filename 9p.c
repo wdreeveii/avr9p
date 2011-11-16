@@ -53,12 +53,12 @@ typedef struct DirectoryEntry {
 	Qid		qid;
 	const	struct DirectoryEntry *sub;
 	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count);
-	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t offset, uint32_t count, uint8_t *buf);
+	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *buf);
 } DirectoryEntry;
 
-int16_t demowrite(const struct DirectoryEntry *dp, uint64_t offset, uint32_t count, uint8_t *data)
+int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data)
 {
-	return count;
+	return *count;
 }
 
 int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count)
@@ -345,7 +345,7 @@ int8_t fidread(uint16_t tag, Fid *fp, uint64_t offset, uint32_t count)
 	return (*dp->read)(dp, tag, offset, count);
 }
 
-int32_t fidwrite(Fid *fp, uint64_t offset, uint32_t count, uint8_t *buf)
+int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 {
 	const DirectoryEntry *dp;
 	if (fp->qid.type & QTDIR)
@@ -524,8 +524,8 @@ void lib9p_process_message(buffer_t *msg)
 			return;
 		case Twrite:
 			written = fidwrite(fp, 
-								*((uint64_t *)(msg->p_out)),
-								*((uint32_t *)(msg->p_out + 8)), 
+								((uint64_t *)(msg->p_out)),
+								((uint32_t *)(msg->p_out + 8)), 
 								msg->p_out + 12);
 			if (written < 0)
 				send_error_reply(tag, "can't write");

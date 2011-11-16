@@ -195,10 +195,15 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 				break;
 			}
 		}
-		if (walks == numwalks && !filefound)
-		{
-			send_error_reply(tag, "File not found.");
-			return;
+		if (!filefound)
+		{ 
+			// first loop when walks == numwalks
+			if(walks == numwalks)
+			{
+				send_error_reply(tag, "File not found.");
+				return;
+			}
+			break;
 		}
 		continue_loop:
 		namesarr += 2 + namesize;

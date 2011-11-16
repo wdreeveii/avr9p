@@ -12,7 +12,7 @@
 
 
 #define SERIALNUM_LENGTH		8
-#define EVENTLIST_SIZE		50
+#define EVENTLIST_SIZE		16
 
 struct s_config {
 	uint16_t			S1Baud;

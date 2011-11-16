@@ -377,8 +377,8 @@ void send_error_reply(uint16_t tag, char *msg)
 	*((uint16_t *)(data + 5)) = tag;
 	*((uint16_t *)(data + 7)) = len;
 	
-	USART_Send(0, data, ERR_HEADER_SIZE);
-	USART_Send(0, msg, len);
+	USART_Send(1, data, ERR_HEADER_SIZE);
+	USART_Send(1, msg, len);
 }
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
@@ -390,8 +390,8 @@ void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 	*((uint16_t *)(data + 5)) = tag;
 	if (msg)
 	{
-		USART_Send(0, data, 7);
-		USART_Send(0, msg, len);
+		USART_Send(1, data, 7);
+		USART_Send(1, msg, len);
 	}
 }
 

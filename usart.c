@@ -222,17 +222,6 @@ ISR(USART0_RX_vect)
 		/* Else, send received char into input buffer */
 		Buffer_Push(&in_buf[0], UDR0);
 	
-	/* do we know the packet size? */
-	if (in_buf[0].count > 4)
-	{
-		/* have all the bytes of the packet been received */
-		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
-		if (*((uint32_t *)in_buf[0].p_out) == in_buf[0].count)
-		{
-			lib9p_process_message(&in_buf[0]);
-			Buffer_Reset(&in_buf[0]);
-		}
-	}
 }
 
 ISR(USART1_RX_vect)
@@ -245,4 +234,16 @@ ISR(USART1_RX_vect)
 	else
 		/* Else, send received char into input buffer */
 		Buffer_Push(&in_buf[1], UDR1);
+		
+		/* do we know the packet size? */
+	if (in_buf[1].count > 4)
+	{
+		/* have all the bytes of the packet been received */
+		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
+		if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
+		{
+			lib9p_process_message(&in_buf[1]);
+			Buffer_Reset(&in_buf[1]);
+		}
+	}
 }

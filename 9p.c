@@ -52,8 +52,8 @@ typedef struct DirectoryEntry {
 	char	*name;
 	Qid		qid;
 	const	struct DirectoryEntry *sub;
-	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count);
-	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *buf);
+	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
+	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t * offset, uint32_t * count, uint8_t *buf);
 } DirectoryEntry;
 
 int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data)
@@ -61,7 +61,7 @@ int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *c
 	return *count;
 }
 
-int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t offset, uint32_t count)
+int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 
 	return 0;
@@ -291,10 +291,10 @@ int8_t fidopen(Fid *fp, uint8_t mode)
 	return 1;
 }
 
-int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t offset, uint32_t count)
+int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint32_t * count)
 {
 	const DirectoryEntry *sdp;
-	uint8_t reply[count + 4];
+	uint8_t reply[*count + 4];
 	uint8_t *replyptr = reply + 4;
 	
 	Stat data = {};
@@ -307,16 +307,16 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t offset, uint3
 	{
 		statsize += STAT_HEADER_SIZE + strlen(sdp->name);
 
-		if (offset > statsize)
+		if (*offset > statsize)
 			continue;
 			
 		// offset <= statsize
 		mkstat(sdp, &data);
 		
-		if (count > statsize - offset)
+		if (*count > statsize - *offset)
 		{
-			numcpybytes = statsize - offset;
-			count -= numcpybytes;
+			numcpybytes = statsize - *offset;
+			*count -= numcpybytes;
 		}
 		memcpy(replyptr, 
 				(((uint8_t *)(&data)) + (data.size - numcpybytes)), 
@@ -328,7 +328,7 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t offset, uint3
 	return 0;
 }
 
-int8_t fidread(uint16_t tag, Fid *fp, uint64_t offset, uint32_t count)
+int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
 
@@ -519,7 +519,7 @@ void lib9p_process_message(buffer_t *msg)
 			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
 				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
 				
-			if (fidread(tag, fp, *((uint64_t *)(msg->p_out)), *((uint32_t *)(msg->p_out + 8))) < 0)
+			if (fidread(tag, fp, ((uint64_t *)(msg->p_out)), ((uint32_t *)(msg->p_out + 8))) < 0)
 				send_error_reply(tag, "Can't read");
 			return;
 		case Twrite:

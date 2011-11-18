@@ -138,28 +138,18 @@ void USART_Init(void)
 void USART_Send(char port, char *p_data, uint16_t length)
 {
 	uint8_t i = 0;
-	uint8_t chunksize;
-
 	while (length)
 	{
-		/* disable interrupts while we access the send buffer */
-		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		for (i == 0; i < length; i++)
 		{
-			chunksize = out_buf[port].count;
+			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+			{
+				if (Buffer_Push(&(out_buf[port]), *(p_data + i)) == -1 )
+					break;
+			}
 		}
-		
-		chunksize = BUFFER_SIZE - chunksize;
-		
-		if (length < chunksize)
-			chunksize = length;
-		
-		length -= chunksize;
-		
-		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-		{
-			for(i = 0; i < chunksize; i++)
-				Buffer_Push(&out_buf[port], *(p_data+i));
-		}
+		p_data += i;
+		length -= i;
 
 			/* Enable UDR Empty interrupt */
 		if (port == 0)
@@ -181,7 +171,7 @@ ISR(USART0_UDRE_vect)
 	char c;	
 	
 	/* pull a byte out of the buffer */
-	if(Buffer_Pull(&out_buf[0], (unsigned char *)&c) == -1)
+	if(Buffer_Pull(&(out_buf[0]), (unsigned char *)&c) == -1)
 		/* If buffer empty stop UDR empty interrupt : Tx End */
 		UCSR0B &= ~(1<<UDRIE0);
 	else
@@ -194,7 +184,7 @@ ISR(USART1_UDRE_vect)
 	char c;
 	
 	/* pull a byte out of the buffer */
-	if(Buffer_Pull(&out_buf[1], (unsigned char *)&c) == -1)
+	if(Buffer_Pull(&(out_buf[1]), (unsigned char *)&c) == -1)
 		/* If buffer empty stop UDR empty interrupt : Tx End */
 		UCSR1B &= ~(1<<UDRIE1);
 	else
@@ -325,8 +315,8 @@ ISR(USART0_RX_vect)
 		/* have all the bytes of the packet been received */
 		if (*(in_buf[0].p_out) + HEADER_SIZE == in_buf[0].count)
 		{
-			process_packet(&in_buf[0]);
-			Buffer_Reset(&in_buf[0]);
+			process_packet(&(in_buf[0]));
+			Buffer_Reset(&(in_buf[0]));
 		}
 	}
 }
@@ -340,5 +330,5 @@ ISR(USART1_RX_vect)
 		garbage = UDR1;
 	else
 		/* Else, send received char into input buffer */
-		Buffer_Push(&in_buf[1], UDR1);
+		Buffer_Push(&(in_buf[1]), UDR1);
 }

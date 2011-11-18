@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -27,7 +28,7 @@ int main(void)
 	cli();
 	hardware_init();
 	sei();
-	
+	printf("Hello World.\n");
 	while (1)
 	{
 		

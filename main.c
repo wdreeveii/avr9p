@@ -28,10 +28,13 @@ int main(void)
 	cli();
 	hardware_init();
 	sei();
-	printf("Hello World.\n");
+	
+	USART_Send(0, "hello world\n", 12);
+	USART_Send(1, "hello world\n", 12);
 	while (1)
 	{
-		
+		DSEND(1, "BLAHHHHHHH TESTING\r\n");
+
 	}	
 	// Never reached.
 	return(0);

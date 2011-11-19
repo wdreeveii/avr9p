@@ -145,7 +145,10 @@ void USART_Send(char port, char *p_data, uint16_t length)
 			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 			{
 				if (Buffer_Push(&(out_buf[port]), *(p_data + i)) == -1 )
+				{	
+					i -= 1;
 					break;
+				}
 			}
 		}
 		p_data += i;

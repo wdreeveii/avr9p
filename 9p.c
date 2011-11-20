@@ -41,12 +41,12 @@ void flushtag(uint16_t oldtag)
 
 typedef struct Qid
 {
-	uint64_t	path;
-	uint32_t	vers;
 	uint8_t		type;
+	uint32_t	vers;
+	uint64_t	path;
 } Qid;
 
-Qid qid_root = {QID_ROOT, 0, QTDIR};
+Qid qid_root = {QTDIR, 0, QID_ROOT};
 
 typedef struct DirectoryEntry {
 	char	*name;
@@ -71,26 +71,26 @@ int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offse
 const DirectoryEntry dir_root[], dir_slash[];
 
 const DirectoryEntry dir_motor[] = {
-	{ "..", {QID_ROOT, 		0, QTDIR}, dir_root },
-	{ "0", 	{QID_MOTOR_0,	0, QTFILE}, 0, 0, demowrite },
+	{ "..", {QTDIR, 	0, QID_ROOT}, dir_root },
+	{ "0", 	{QTFILE,	0, QID_MOTOR_0}, 0, 0, demowrite },
 	{ 0 }
 };
 
 const DirectoryEntry dir_sensor[] = {
-	{ "..", {QID_ROOT, 		0, QTDIR}, dir_root },
-	{ "0", 	{QID_SENSOR_0,	0, QTFILE}, 0, demoread, demowrite },
+	{ "..", {QTDIR, 	0, QID_ROOT}, dir_root },
+	{ "0", 	{QTFILE,	0, QID_SENSOR_0}, 0, demoread, demowrite },
 	{ 0 }
 };
 
 const DirectoryEntry dir_root[] = {
-	{ "..", 	{QID_ROOT, 	0, QTDIR}, dir_slash },
-	{ "motor", 	{QID_MOTOR, 0, QTDIR}, dir_motor },
-	{ "sensor", {QID_SENSOR,0, QTDIR}, dir_sensor },
+	{ "..", 	{QTDIR, 0, QID_ROOT}, dir_slash },
+	{ "motor", 	{QTDIR, 0, QID_MOTOR}, dir_motor },
+	{ "sensor", {QTDIR, 0, QID_SENSOR}, dir_sensor },
 	{ 0 }
 };
 
 const DirectoryEntry dir_slash[] = {
-	{ "/", {QID_ROOT, 0, QTDIR}, dir_root },
+	{ "/", {QTDIR, 0, QID_ROOT}, dir_root },
 	{ 0 }
 };
 
@@ -241,9 +241,8 @@ void mkstat(const DirectoryEntry * dp, Stat * data)
 	uint16_t stringlen = 0;
 	uint8_t *spos;
 	
-	data->qidtype = dp->qid.type;
-	data->qidvers = dp->qid.vers;
-	data->qidpath = dp->qid.path;
+	memcpy(&(data->qidtype), &(dp->qid), sizeof(Qid));
+	
 	data->mode |= ((uint32_t)(dp->qid.type & 0xFC)) << 24;
 	data->mode |= dp->sub ? 0555 : 0666;
 	// data.atime = time();

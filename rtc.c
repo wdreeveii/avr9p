@@ -218,9 +218,8 @@ void print_time(void)
 }
 
 // rtc 1hz square wave tick
-ISR(PCINT1_vect, ISR_NAKED)
+ISR(PCINT1_vect, ISR_NOBLOCK)
 {
-	sei();
 	// issue print request
 	// The square wave is like any square wave, 
 	// and thus it changes value twice in 1 period.
@@ -233,7 +232,6 @@ ISR(PCINT1_vect, ISR_NAKED)
 	}
 	else
 		{} // do nothing
-	reti();
 }
 
 /* void rtc_squarewave_enable(void)

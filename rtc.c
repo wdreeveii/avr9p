@@ -8,10 +8,12 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 #include <util/twi.h>
 #include "usart.h"
 #include "rtc.h"
 #include "config.h"
+#include "softtimer.h"
 #include "util.h"
 
 /* Some definitions.. */
@@ -136,14 +138,14 @@ int set_time(time_t timestamp)
 	if (rv == -1) printf("RTC set_time WRITE ERROR\n");
 }
 
-/* time()
- * Return the current unix time.
+/* time_t get_time()
+ * Return the current unix time supplied by the RTC.
  * Reads the m41t83 date/time block from the device and converts into unix time.
  * Takes no arguments
  * Returns the number of seconds since midnight January 1 1970
  * Author: Whitham D. Reeve II
  */
-time_t time()
+time_t get_time()
 {
 	uint8_t month_lens[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
 	uint8_t rv = 0;
@@ -171,6 +173,22 @@ time_t time()
 	return total_secs;
 }
 
+/* time_t time()
+ * get a copy of the current time stored in the global variable.
+ * Returns a cached copy of the number of seconds since midnight Jan 1 1970
+ * Author: Whitham D. Reeve II
+ */
+time_t current_time_global;
+time_t time()
+{
+	time_t copy;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		copy = current_time_global;
+	}
+	return copy;
+}
+
 void RTC_Init(void)
 {
 	/* frequency = cpuspeed / (16 + 2(TWBR) * 4^(TWSR)) */
@@ -194,7 +212,7 @@ void RTC_Init(void)
 		printf("halt Resetting..\n");
 		rtc_halt_reset();	
 	}
-	if(rtc_check_osc_fail() == -1)
+	if(rtc_check_osc_fail())
 	{
 		printf("osc Resetting..\n");
 		rtc_osc_fail_reset();
@@ -205,6 +223,7 @@ void RTC_Init(void)
 		rtc_stop_reset();	
 	}
 	//rtc_start();
+	current_time_global = get_time();
 	rtc_squarewave_enable();
 }
 
@@ -220,14 +239,20 @@ void print_time(void)
 // rtc 1hz square wave tick
 ISR(PCINT1_vect, ISR_NOBLOCK)
 {
+	time_t copy;
 	// issue print request
 	// The square wave is like any square wave, 
 	// and thus it changes value twice in 1 period.
 	if (PINB & (1<<2))
 	{
-		//ioflip(1);
+		copy = get_time();
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			current_time_global = copy;
+		}
 		print_time();
 		mucron_tick();
+		soft_timer_tick();
 		// DO WHAT EVER YOU NEED TO DO ONCE A SECOND HERE
 	}
 	else

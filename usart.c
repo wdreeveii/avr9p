@@ -141,11 +141,11 @@ void USART_Send(char port, char *p_data, uint16_t length)
 	uint8_t i = 0;
 	while (length)
 	{
-		for (i == 0; i < length; i++)
+		for (i = 0; i < length; i++)
 		{
 			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 			{
-				if (Buffer_Push(&out_buf[port], *(p_data + i)) == -1 )
+				if (Buffer_Push(&(out_buf[port]), *(p_data + i)) == -1 )
 				{	
 					i -= 1;
 					break;
@@ -192,8 +192,12 @@ ISR(USART1_UDRE_vect)
 		/* If buffer empty stop UDR empty interrupt : Tx End */
 		UCSR1B &= ~(1<<UDRIE1);
 	else
+	{
 		/* Else, put c in UDR */
 		UDR1 = c;
+		//printf("%x|", (unsigned char)c);	
+	}
+		
 }
 
 /*
@@ -225,18 +229,27 @@ ISR(USART1_RX_vect)
 		/* If frame error or parity error UDR is Garbage */
 		garbage = UDR1;
 	else
+	{
 		/* Else, send received char into input buffer */
-		Buffer_Push(&in_buf[1], UDR1);
+		garbage = UDR1;
+		//USART_Send(0, &garbage, 1);
+		//printf("%x|", (unsigned char)garbage);
+		Buffer_Push(&in_buf[1], garbage);
+		//USART_Send(0, &garbage, 1);
 		
 		/* do we know the packet size? */
-	if (in_buf[1].count > 4)
-	{
-		/* have all the bytes of the packet been received */
-		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
-		if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
+		if (in_buf[1].count > 4)
 		{
-			lib9p_process_message(&in_buf[1]);
-			Buffer_Reset(&in_buf[1]);
+			/* have all the bytes of the packet been received */
+			/* 9p uses little endien byte order and so does avr, so just cast the array as int */
+			if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
+			{
+				sei();
+				printf("P\n");
+				lib9p_process_message(&in_buf[1]);
+				Buffer_Reset(&in_buf[1]);
+				printf("F\n");
+			}
 		}
 	}
 

@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <util/atomic.h>
 
@@ -17,6 +18,11 @@ typedef struct cb_info
 } cb_data;
 
 cb_data st_event_list_global[MAXEVENTS];
+
+void soft_timer_init()
+{
+	memset(st_event_list_global, 0, MAXEVENTS*sizeof(cb_data));
+}
 
 int8_t set_timer(time_t trigger, call_back cb)
 {
@@ -67,10 +73,12 @@ void soft_timer_tick()
 {
 	uint8_t index;
 	time_t current_time = time();
+	
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
 		for (index = 0; index < MAXEVENTS; index++)
 		{
+			printf("%lu\n", st_event_list_global[index].trigger);
 			if (st_event_list_global[index].trigger == current_time)
 			{
 				exec_nonatomic(st_event_list_global[index].cb);

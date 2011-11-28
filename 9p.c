@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "9p.h"
@@ -160,7 +161,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	} data;
 	uint8_t walklistend = 0;
 	uint8_t filefound = 0;
-	
+	printf("walks: %d\n", numwalks);
 	if (numwalks == 0)
 	{
 		send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
@@ -177,18 +178,23 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	
 	for (; walks > 0; walks--)
 	{
+		printf("doing walk\n");
 		namesize = *((uint16_t *)(namesarr));
 		filefound = 0;
-		if (dp == qid_map[QID_ROOT] && strncmp(namesarr + 2, "..", 2))
+		if (dp == qid_map[QID_ROOT] && 0 == strncmp(namesarr + 2, "..", 2))
 		{
+			USART_Send(0, namesarr + 2, namesize);
+			printf("\n");
 			data.walklist[walklistend++] = dp->qid;
 			goto continue_loop;
 		}
-			
+		printf("walk base %s\n", dp->name);
 		// this is weird, requires all sub dirs to be listed right after parent dir in qid_map
 		for (sdp = dp->sub; sdp->name; sdp++)
 		{
+			printf("walk file %s\n", sdp->name);
 			if (strncmp(sdp->name, namesarr + 2, namesize) == 0) {
+				printf("walk file found\n");
 				filefound = 1;
 				data.walklist[walklistend++] = sdp->qid;
 				dp = sdp;
@@ -235,18 +241,19 @@ typedef struct Stat {
 	uint8_t strings[100];
 } Stat;
 
-#define STAT_HEADER_SIZE 58
 void mkstat(const DirectoryEntry * dp, Stat * data)
 {
 	uint16_t stringlen = 0;
 	uint8_t *spos;
-	
+	data->type = 0xEFBE;
+	data->dev = 0xEEFFC0DA;
 	memcpy(&(data->qidtype), &(dp->qid), sizeof(Qid));
 	
-	data->mode |= ((uint32_t)(dp->qid.type & 0xFC)) << 24;
+	data->mode = ((uint32_t)(dp->qid.type & 0xFC)) << 24;
 	data->mode |= dp->sub ? 0555 : 0666;
-	// data.atime = time();
-	// data.mtime = time();
+	data->atime = 0xDEC0CDAB;
+	data->mtime = 0xEFBEEFBE;
+	//data->length
 	
 	spos = data->strings;
 	*((uint16_t *)(spos)) = stringlen = strlen(dp->name);
@@ -268,17 +275,21 @@ void mkstat(const DirectoryEntry * dp, Stat * data)
 	
 	data->size = 41 + (spos - data->strings);
 }
-
+struct Rstat_data {
+	uint16_t	size_dup;
+	Stat		data;
+};
 void fidstat(uint16_t tag, Fid *fp)
 {
- 	Stat data = {};
+ 	struct Rstat_data data = {};
 	const DirectoryEntry *dp;
 	
 	dp = qid_map[fp->qid.path];
 	
-	mkstat(dp, &data);
+	mkstat(dp, &data.data);
+	data.size_dup = data.data.size + 2;
 	
-	send_reply(Rstat, tag, (uint8_t *)&data, data.size);
+	send_reply(Rstat, tag, (uint8_t *)&data, data.size_dup);
 }
 
 
@@ -294,41 +305,44 @@ int8_t fidopen(Fid *fp, uint8_t mode)
 	fp->open = 1;
 	return 1;
 }
-
+struct Rreaddir_data {
+	Stat		data;
+	uint16_t size_dup;
+};
+#define MIN(a,b) (a < b) ? a : b
 int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint32_t * count)
 {
 	const DirectoryEntry *sdp;
 	uint8_t reply[*count + 4];
 	uint8_t *replyptr = reply + 4;
 	
-	Stat data = {};
+	struct Rreaddir_data data = {};
 	
 	uint32_t statsize = 0;
 	
 	uint16_t numcpybytes = 0;
-	
+	*((uint32_t *)(reply)) = 0;
 	for (sdp = dp->sub; sdp->name; sdp++)
 	{
-		statsize += STAT_HEADER_SIZE + strlen(sdp->name);
-
-		if (*offset > statsize)
-			continue;
-			
-		// offset <= statsize
-		mkstat(sdp, &data);
+		mkstat(sdp, &data.data);
+		statsize += data.data.size + 2;
 		
-		if (*count > statsize - *offset)
-		{
-			numcpybytes = statsize - *offset;
-			*count -= numcpybytes;
-		}
-		memcpy(replyptr, 
-				(((uint8_t *)(&data)) + (data.size - numcpybytes)), 
+		if (*offset >= statsize)
+			continue;
+		
+		// offset < statsize
+		numcpybytes = MIN(*count, statsize - *offset);
+		
+		memcpy(replyptr,
+				(((uint8_t *)(&data)) + (*offset - (statsize - data.data.size - 2))),
 				numcpybytes);
 		replyptr += numcpybytes;
 		*((uint32_t *)(reply)) += numcpybytes;
+		*offset += numcpybytes;
+		*count -= numcpybytes;
 	}
-	send_reply(Rread, tag, reply, data.size);
+	printf("readdir len %u : stated %u\n", replyptr - reply, *((uint32_t *)(reply)));
+	send_reply(Rread, tag, reply, replyptr - reply);
 	return 0;
 }
 
@@ -337,15 +351,17 @@ int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t * count)
 	const DirectoryEntry *dp;
 
 	dp = qid_map[fp->qid.path];
-
+	//printf("Read\n");
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
 			return -1;
 		return fidreaddir(tag, dp, offset, count);
 	}
-	/* right, that's that out of the way */
+	/* right, now that that's out of the way */
 	if (!dp->read)
 		return -1;
+		
+	//printf("Reading FILE\n");
 	return (*dp->read)(dp, tag, offset, count);
 }
 
@@ -378,18 +394,23 @@ void send_error_reply(uint16_t tag, char *msg)
 	
 	USART_Send(1, data, ERR_HEADER_SIZE);
 	USART_Send(1, msg, len);
+	USART_Send(0, data, ERR_HEADER_SIZE);
+	USART_Send(0, msg, len);
 }
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 {
+	uint16_t i = 0;
 	/* 7 = size[4]type[1]tag[2] */
 	uint8_t data[7];
-	*((uint32_t *)data) = 7 + len;
-	data[4] = type;
+	*((uint32_t *)(data)) = 7 + len;
+	*((uint8_t *)(data + 4)) = type;
 	*((uint16_t *)(data + 5)) = tag;
+	
+	USART_Send(1, data, 7);
+	
 	if (msg)
 	{
-		USART_Send(1, data, 7);
 		USART_Send(1, msg, len);
 	}
 }
@@ -411,7 +432,7 @@ void lib9p_process_message(buffer_t *msg)
 	uint16_t tag = *((uint16_t *)(msg->p_out));
 	msg->p_out += 2;
 	msg->count -= 2;
-	
+	printf("%d\n", type);
 	switch (type)
 	{
 		case Tversion:

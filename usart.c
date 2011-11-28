@@ -7,6 +7,7 @@
 #include "iocontrol.h"
 #include "rtc.h"
 #include "9p.h"
+#include "softtimer.h"
 #include <string.h>
 #include <limits.h>
 #include <stdlib.h>
@@ -221,6 +222,18 @@ ISR(USART0_RX_vect)
 	
 }
 
+#define TIMEOUT_SECS 5
+int8_t usart1_timeout_slot = -1;
+void usart1_timeout()
+{
+	printf("Resetting the buffer\n");
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		Buffer_Reset(&in_buf[1]);
+		usart1_timeout_slot = -1;
+	}
+}
+
 ISR(USART1_RX_vect)
 {
 	char garbage;
@@ -237,6 +250,11 @@ ISR(USART1_RX_vect)
 		Buffer_Push(&in_buf[1], garbage);
 		//USART_Send(0, &garbage, 1);
 		
+		if (usart1_timeout_slot < 0)
+			usart1_timeout_slot = set_timer(time() + TIMEOUT_SECS, &usart1_timeout);
+		else
+			reset_timer(time() + TIMEOUT_SECS, &usart1_timeout, usart1_timeout_slot);
+		
 		/* do we know the packet size? */
 		if (in_buf[1].count > 4)
 		{
@@ -244,9 +262,11 @@ ISR(USART1_RX_vect)
 			/* 9p uses little endien byte order and so does avr, so just cast the array as int */
 			if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
 			{
-				sei();
+				
 				printf("P\n");
+				sei();
 				lib9p_process_message(&in_buf[1]);
+				cli();
 				Buffer_Reset(&in_buf[1]);
 				printf("F\n");
 			}

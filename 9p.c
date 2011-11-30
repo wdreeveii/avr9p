@@ -33,10 +33,7 @@ void flushtag(uint16_t oldtag)
 	
 }
 #define QID_ROOT 0
-#define QID_MOTOR 1
-#define QID_MOTOR_0 2
-#define QID_SENSOR 3
-#define QID_SENSOR_0 4
+#define QID_SENSOR 1
 
 #define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
 
@@ -67,41 +64,58 @@ int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offse
 
 	return 0;
 }
-
-
-const DirectoryEntry dir_root[], dir_slash[];
-
-const DirectoryEntry dir_motor[] = {
-	{ "..", {QTDIR, 	0, QID_ROOT}, dir_root },
-	{ "0", 	{QTFILE,	0, QID_MOTOR_0}, 0, 0, demowrite },
-	{ 0 }
-};
-
-const DirectoryEntry dir_sensor[] = {
-	{ "..", {QTDIR, 	0, QID_ROOT}, dir_root },
-	{ "0", 	{QTFILE,	0, QID_SENSOR_0}, 0, demoread, demowrite },
-	{ 0 }
-};
-
-const DirectoryEntry dir_root[] = {
+DirectoryEntry dir_slash[];
+DirectoryEntry dir_root[] = {
 	{ "..", 	{QTDIR, 0, QID_ROOT}, dir_slash },
-	{ "motor", 	{QTDIR, 0, QID_MOTOR}, dir_motor },
-	{ "sensor", {QTDIR, 0, QID_SENSOR}, dir_sensor },
+	{ "sensor", {QTDIR, 0, QID_SENSOR}, 0 },
 	{ 0 }
 };
 
-const DirectoryEntry dir_slash[] = {
+DirectoryEntry dir_slash[] = {
 	{ "/", {QTDIR, 0, QID_ROOT}, dir_root },
 	{ 0 }
 };
 
-const DirectoryEntry *qid_map[] = {
+#define QID_MAP_SIZE 15
+DirectoryEntry *qid_map[QID_MAP_SIZE] = {
 	/* QID_ROOT */		&dir_slash[0],
-	/* QID_MOTOR */		&dir_root[1],
-	/* QID_MOTOR_0 */	&dir_motor[1],
-	/* QID_SENSOR */	&dir_root[2],
-	/* QID_SENSOR_0 */	&dir_sensor[1],
+	/* QID_SENSOR */	&dir_root[1],
 };
+
+uint8_t register_de(DirectoryEntry * entry)
+{
+	uint8_t index;
+	for(index = 0; index < QID_MAP_SIZE; index++)
+	{
+		if (!qid_map[index])
+		{
+			qid_map[index] = entry;
+			break;
+		}
+	}
+	return index;
+}
+
+DirectoryEntry * build_sensor(uint8_t parent_qid_index, DirectoryEntry * parent)
+{
+	uint8_t file_id;
+	DirectoryEntry *dir_sensor = (DirectoryEntry *)malloc(3 * sizeof(DirectoryEntry));
+	if (!dir_sensor)
+	{
+		printf("Dir build malloc fail\n");
+		return 0;
+	}
+	*dir_sensor = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
+	*(dir_sensor + 1) = (DirectoryEntry){"0", {QTFILE, 0, register_de(dir_sensor+1)}, 0, demoread, demowrite};
+	*(dir_sensor + 2) = (DirectoryEntry){0};
+	
+	return dir_sensor;
+}
+
+void p9_init()
+{
+	dir_root[1].sub = build_sensor(QID_ROOT, dir_root);
+}
 
 typedef struct Fid {
 	struct Fid *next;

@@ -115,5 +115,5 @@ DMSETUID    =0x00080000  # mode bit for setuid (Unix, 9P2000.u)
 DMSETGID    =0x00040000  # mode bit for setgid (Unix, 9P2000.u)
 */
 void lib9p_process_message(buffer_t *msg);
-
+void p9_init();
 #endif

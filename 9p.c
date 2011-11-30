@@ -23,9 +23,7 @@
 #include "9p.h"
 #include "buffer.h"
 #include "usart.h"
-
-void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
-void send_error_reply(uint16_t tag, char *msg);
+#include "9p_config.h"
 
 void flushtag(uint16_t oldtag)
 {
@@ -34,25 +32,11 @@ void flushtag(uint16_t oldtag)
 }
 #define QID_ROOT 0
 #define QID_SENSOR 1
+#define QID_CONFIG 2
 
 #define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
 
-typedef struct Qid
-{
-	uint8_t		type;
-	uint32_t	vers;
-	uint64_t	path;
-} Qid;
-
 Qid qid_root = {QTDIR, 0, QID_ROOT};
-
-typedef struct DirectoryEntry {
-	char	*name;
-	Qid		qid;
-	const	struct DirectoryEntry *sub;
-	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
-	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t * offset, uint32_t * count, uint8_t *buf);
-} DirectoryEntry;
 
 int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data)
 {
@@ -70,10 +54,12 @@ int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offse
 
 	return 0;
 }
-DirectoryEntry dir_slash[];
+DirectoryEntry dir_root[],dir_slash[];
+
 DirectoryEntry dir_root[] = {
 	{ "..", 	{QTDIR, 0, QID_ROOT}, dir_slash },
 	{ "sensor", {QTDIR, 0, QID_SENSOR}, 0 },
+	{ "config", {QTDIR, 0, QID_CONFIG}, 0 },
 	{ 0 }
 };
 
@@ -82,13 +68,14 @@ DirectoryEntry dir_slash[] = {
 	{ 0 }
 };
 
-#define QID_MAP_SIZE 15
+#define QID_MAP_SIZE 20
 DirectoryEntry *qid_map[QID_MAP_SIZE] = {
 	/* QID_ROOT */		&dir_slash[0],
 	/* QID_SENSOR */	&dir_root[1],
+	/* QID_CONFIG */	&dir_root[2],
 };
 
-uint8_t register_de(DirectoryEntry * entry)
+uint8_t p9_register_de(DirectoryEntry * entry)
 {
 	uint8_t index;
 	for(index = 0; index < QID_MAP_SIZE; index++)
@@ -111,7 +98,7 @@ DirectoryEntry * build_sensor(uint8_t parent_qid_index, DirectoryEntry * parent)
 		return 0;
 	}
 	*dir_sensor = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
-	*(dir_sensor + 1) = (DirectoryEntry){"0", {QTFILE, 0, register_de(dir_sensor+1)}, 0, demoread, demowrite};
+	*(dir_sensor + 1) = (DirectoryEntry){"0", {QTFILE, 0, p9_register_de(dir_sensor+1)}, 0, demoread, demowrite};
 	*(dir_sensor + 2) = (DirectoryEntry){0};
 	
 	return dir_sensor;
@@ -120,6 +107,7 @@ DirectoryEntry * build_sensor(uint8_t parent_qid_index, DirectoryEntry * parent)
 void p9_init()
 {
 	dir_root[1].sub = build_sensor(QID_ROOT, dir_root);
+	dir_root[2].sub = p9_build_config(QID_ROOT, dir_root);
 }
 
 typedef struct Fid {
@@ -200,7 +188,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 		printf("doing walk\n");
 		namesize = *((uint16_t *)(namesarr));
 		filefound = 0;
-		if (dp == qid_map[QID_ROOT] && 0 == strncmp(namesarr + 2, "..", 2))
+		if (dp == qid_map[QID_ROOT] && 0 == strncmp((char*)namesarr + 2, "..", 2))
 		{
 			USART_Send(0, namesarr + 2, namesize);
 			printf("\n");
@@ -339,7 +327,7 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	uint32_t statsize = 0;
 	
 	uint16_t numcpybytes = 0;
-	*((uint32_t *)(reply)) = 0;
+	*((uint32_t *)reply) = 0;
 	for (sdp = dp->sub; sdp->name; sdp++)
 	{
 		mkstat(sdp, &data.data);
@@ -349,6 +337,10 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 			continue;
 		
 		// offset < statsize
+		
+		// not enough space for this directory so just breakout and return what we have so far
+		if (*count < statsize - *offset)
+			break;
 		numcpybytes = MIN(*count, statsize - *offset);
 		
 		memcpy(replyptr,
@@ -359,28 +351,30 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 		*offset += numcpybytes;
 		*count -= numcpybytes;
 	}
-	printf("readdir len %u : stated %u\n", replyptr - reply, *((uint32_t *)(reply)));
+	printf("readdir len %u : stated %lu\n", replyptr - reply, *((uint32_t *)(reply)));
 	send_reply(Rread, tag, reply, replyptr - reply);
 	return 0;
 }
 
-int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t * count)
+int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t count)
 {
 	const DirectoryEntry *dp;
 
 	dp = qid_map[fp->qid.path];
+	printf("WHAT %llu %lu #######       %p\n", *((uint64_t *)offset), count, &count);
 	//printf("Read\n");
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
 			return -1;
-		return fidreaddir(tag, dp, offset, count);
+		return fidreaddir(tag, dp, offset, &count);
 	}
 	/* right, now that that's out of the way */
 	if (!dp->read)
 		return -1;
-		
+	
+	
 	//printf("Reading FILE\n");
-	return (*dp->read)(dp, tag, offset, count);
+	return (*dp->read)(dp, tag, offset, &count);
 }
 
 int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
@@ -405,15 +399,15 @@ void send_error_reply(uint16_t tag, char *msg)
 	uint16_t len = strlen(msg);
 	uint8_t data[ERR_HEADER_SIZE];
 	/* size[4]type[1]tag[2]data_size[2]data[len] */
-	*((uint32_t *)data) = ERR_HEADER_SIZE + len;	
+	*((uint32_t *)(data)) = ERR_HEADER_SIZE + len;	
 	data[4] = Rerror;
 	*((uint16_t *)(data + 5)) = tag;
 	*((uint16_t *)(data + 7)) = len;
 	
 	USART_Send(1, data, ERR_HEADER_SIZE);
-	USART_Send(1, msg, len);
+	USART_Send(1, (uint8_t *)msg, len);
 	USART_Send(0, data, ERR_HEADER_SIZE);
-	USART_Send(0, msg, len);
+	USART_Send(0, (uint8_t *)msg, len);
 }
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
@@ -441,6 +435,8 @@ void lib9p_process_message(buffer_t *msg)
 	uint32_t len = *((uint32_t *)(msg->p_out));
 	uint32_t newfid; // Twalk
 	int32_t written; // Twrite
+	uint64_t offset; // Tread
+	uint32_t count; // Tread
 	msg->p_out += 4;
 	msg->count -= 4;
 	
@@ -450,7 +446,7 @@ void lib9p_process_message(buffer_t *msg)
 	uint16_t tag = *((uint16_t *)(msg->p_out));
 	msg->p_out += 2;
 	msg->count -= 2;
-	printf("%d\n", type);
+
 	switch (type)
 	{
 		case Tversion:
@@ -562,8 +558,16 @@ void lib9p_process_message(buffer_t *msg)
 		case Tread:
 			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
 				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
-				
-			if (fidread(tag, fp, ((uint64_t *)(msg->p_out)), ((uint32_t *)(msg->p_out + 8))) < 0)
+			
+			offset = *((uint64_t *)msg->p_out);
+			msg->p_out += 8;
+			msg->count -= 8;
+			count = *((uint32_t *)(msg->p_out));
+			printf("TREAD CNT %lu ####    %p\n", count, &count);
+			if (fidread(tag, fp,
+						&offset,
+						count
+						) < 0)
 				send_error_reply(tag, "Can't read");
 			return;
 		case Twrite:

@@ -56,6 +56,12 @@ typedef struct DirectoryEntry {
 
 int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data)
 {
+	uint8_t index;
+	for(index = 0; index < *count; index++)
+	{
+		printf("%x|", *(data+index));	
+	}
+	printf("\n");
 	return *count;
 }
 
@@ -98,7 +104,6 @@ uint8_t register_de(DirectoryEntry * entry)
 
 DirectoryEntry * build_sensor(uint8_t parent_qid_index, DirectoryEntry * parent)
 {
-	uint8_t file_id;
 	DirectoryEntry *dir_sensor = (DirectoryEntry *)malloc(3 * sizeof(DirectoryEntry));
 	if (!dir_sensor)
 	{
@@ -306,7 +311,6 @@ void fidstat(uint16_t tag, Fid *fp)
 	send_reply(Rstat, tag, (uint8_t *)&data, data.size_dup);
 }
 
-
 int8_t fidopen(Fid *fp, uint8_t mode)
 {
 	if (fp->open
@@ -465,7 +469,8 @@ void lib9p_process_message(buffer_t *msg)
 			send_error_reply(tag, "Auth not required.");
 			return;
 		case Twstat:
-			send_error_reply(tag, "Unable to change file stat.");
+			send_reply(Rwstat, tag, 0, 0); // fake response instead of error for v9fs
+			//send_error_reply(tag, "Unable to change file stat.");
 			return;
 	}
 	

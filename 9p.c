@@ -328,6 +328,8 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	
 	uint16_t numcpybytes = 0;
 	*((uint32_t *)reply) = 0;
+	printf("ABCD %lu %lu #######       %p\n", *(count), *(offset), count);
+	
 	for (sdp = dp->sub; sdp->name; sdp++)
 	{
 		mkstat(sdp, &data.data);
@@ -356,17 +358,24 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	return 0;
 }
 
-int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t count)
+struct fidreadargs {
+	uint16_t tag;
+	Fid * fp;
+	uint64_t * offset;
+	uint32_t * count;
+};
+
+int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
-
+	//hahaha = 2;
 	dp = qid_map[fp->qid.path];
-	printf("WHAT %llu %lu #######       %p\n", *((uint64_t *)offset), count, &count);
+	printf("WHAT %lu %lu\n", *(count), *(offset));
 	//printf("Read\n");
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
 			return -1;
-		return fidreaddir(tag, dp, offset, &count);
+		return fidreaddir(tag, dp, offset, count);
 	}
 	/* right, now that that's out of the way */
 	if (!dp->read)
@@ -374,7 +383,7 @@ int8_t fidread(uint16_t tag, Fid *fp, uint64_t * offset, uint32_t count)
 	
 	
 	//printf("Reading FILE\n");
-	return (*dp->read)(dp, tag, offset, &count);
+	return (*dp->read)(dp, tag, offset, count);
 }
 
 int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
@@ -412,7 +421,6 @@ void send_error_reply(uint16_t tag, char *msg)
 
 void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 {
-	uint16_t i = 0;
 	/* 7 = size[4]type[1]tag[2] */
 	uint8_t data[7];
 	*((uint32_t *)(data)) = 7 + len;
@@ -432,11 +440,10 @@ void lib9p_process_message(buffer_t *msg)
 {
 	uint8_t reply[sizeof(Qid) + 4]; // 12 for Tversion, 17 for Topen
 	uint16_t oldtag; 	// Tflush
-	uint32_t len = *((uint32_t *)(msg->p_out));
+	//uint32_t len = *((uint32_t *)(msg->p_out));
 	uint32_t newfid; // Twalk
 	int32_t written; // Twrite
-	uint64_t offset; // Tread
-	uint32_t count; // Tread
+	struct fidreadargs freadargs;
 	msg->p_out += 4;
 	msg->count -= 4;
 	
@@ -559,15 +566,8 @@ void lib9p_process_message(buffer_t *msg)
 			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
 				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
 			
-			offset = *((uint64_t *)msg->p_out);
-			msg->p_out += 8;
-			msg->count -= 8;
-			count = *((uint32_t *)(msg->p_out));
-			printf("TREAD CNT %lu ####    %p\n", count, &count);
-			if (fidread(tag, fp,
-						&offset,
-						count
-						) < 0)
+			printf("TREAD CNT %lu  %lu\n", *((uint32_t *)(msg->p_out + 8)), *((uint64_t *)msg->p_out));
+			if (fidread(tag, fp, (uint64_t *)msg->p_out, (uint32_t *)(msg->p_out + 8)) < 0)
 				send_error_reply(tag, "Can't read");
 			return;
 		case Twrite:

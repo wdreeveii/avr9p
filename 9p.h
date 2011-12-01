@@ -4,7 +4,6 @@
 
 #include "buffer.h"
 
-
 /* Maximum walk elements */
 #define MAXWELEM 16
 /* Maximum entries in a directory */
@@ -107,13 +106,25 @@ enum
 	DMEXEC      =0x1,			// mode bit for execute permission 
 };
 
-/*DMSYMLINK   =0x02000000  # mode bit for symbolic link (Unix, 9P2000.u) 
-DMDEVICE    =0x00800000  # mode bit for device file (Unix, 9P2000.u) 
-DMNAMEDPIPE =0x00200000  # mode bit for named pipe (Unix, 9P2000.u) 
-DMSOCKET    =0x00100000  # mode bit for socket (Unix, 9P2000.u) 
-DMSETUID    =0x00080000  # mode bit for setuid (Unix, 9P2000.u) 
-DMSETGID    =0x00040000  # mode bit for setgid (Unix, 9P2000.u)
-*/
+typedef struct Qid
+{
+	uint8_t		type;
+	uint32_t	vers;
+	uint64_t	path;
+} Qid;
+
+typedef struct DirectoryEntry {
+	char	*name;
+	Qid		qid;
+	const	struct DirectoryEntry *sub;
+	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
+	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t * offset, uint32_t * count, uint8_t *buf);
+} DirectoryEntry;
+
+void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
+void send_error_reply(uint16_t tag, char *msg);
+
 void lib9p_process_message(buffer_t *msg);
+uint8_t p9_register_de(DirectoryEntry * entry);
 void p9_init();
 #endif

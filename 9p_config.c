@@ -15,55 +15,56 @@ int16_t read_usart0_baud(const struct DirectoryEntry *dp, uint16_t tag, uint64_t
 	uint8_t outlength = 0;
 	*((uint32_t *)(reply)) = 0;
 	
-	if (*offset != 0)
+	if (*(offset) != 0)
 		goto done;
-
 	switch(config_get_baud(0))
 	{
 		case 1041:
-			outlength = strlcpy((char*)replyptr, "2400", 16);
+			outlength = strlcpy((char*)replyptr, "2400\n", 16);
 			break;
 		case 520:
-			outlength = strlcpy((char*)replyptr, "4800", 16);
+			outlength = strlcpy((char*)replyptr, "4800\n", 16);
 			break;
 		case 259:
-			outlength = strlcpy((char*)replyptr, "9600", 16);
+			outlength = strlcpy((char*)replyptr, "9600\n", 16);
 			break;
 		case 173:
-			outlength = strlcpy((char*)replyptr, "14400", 16);
+			outlength = strlcpy((char*)replyptr, "14400\n", 16);
 			break;
 		case 129:
-			outlength = strlcpy((char*)replyptr, "19200", 16);
+			outlength = strlcpy((char*)replyptr, "19200\n", 16);
 			break;
 		case 86:
-			outlength = strlcpy((char*)replyptr, "28800", 16);
+			outlength = strlcpy((char*)replyptr, "28800\n", 16);
 			break;
 		case 64:
-			outlength = strlcpy((char*)replyptr, "38400", 16);
+			outlength = strlcpy((char*)replyptr, "38400\n", 16);
 			break;
-		case 41:
-			outlength = strlcpy((char*)replyptr, "57600", 16);
+		case 42:
+			outlength = strlcpy((char*)replyptr, "57600\n", 16);
+			printf("strlcpy\n");
 			break;
 		case 32:
-			outlength = strlcpy((char*)replyptr, "76800", 16);
+			outlength = strlcpy((char*)replyptr, "76800\n", 16);
 			break;
 		case 21:
-			outlength = strlcpy((char*)replyptr, "115200", 16);
+			outlength = strlcpy((char*)replyptr, "115200\n", 16);
 			break;
 		case 10:
-			outlength = strlcpy((char*)replyptr, "230400", 16);
+			outlength = strlcpy((char*)replyptr, "230400\n", 16);
 			break;
 		case 9:
-			outlength = strlcpy((char*)replyptr, "250000", 16);
+			outlength = strlcpy((char*)replyptr, "250000\n", 16);
 			break;
 		case 4:
-			outlength = strlcpy((char*)replyptr, "500000", 16);
+			outlength = strlcpy((char*)replyptr, "500000\n", 16);
 			break;
 	}
 	*((uint32_t *)(reply)) = outlength;
+	replyptr += outlength;
 	
 done:
-	printf("Do Print! %lu->%lu->%u\n", *offset, *count, replyptr - reply);
+
 	send_reply(Rread, tag, reply, replyptr - reply);
 	return 0;
 }

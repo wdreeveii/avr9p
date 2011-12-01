@@ -20,7 +20,7 @@ static int putchar_for_printf(char c, FILE *stream)
 	/* print also \r if the character is \n */
 	if (c == '\n') putchar_for_printf('\r', stream);
 		
-	USART_Send(0, &c, 1);
+	USART_Send(0,(uint8_t *) &c, 1);
 	return 0;	
 }
 
@@ -117,14 +117,14 @@ void USART_Init(void)
 	// The following lines are helpful when creating a config eeprom from scratch
 	//config_set_baud(0, 42);
 	//config_set_baud(1, 42);
-	if (config_baud = config_get_baud(0)) baud = config_baud;
+	if ((config_baud = config_get_baud(0))) baud = config_baud;
 	USART_Init1(baud);
 	
 	// setup stdout so printf works
 	stdout = &standard_output;
 	
 	baud = 42;
-	if (config_baud = config_get_baud(1)) baud = config_baud;
+	if ((config_baud = config_get_baud(1))) baud = config_baud;
 	USART_Init2(baud);
 }
 
@@ -137,7 +137,7 @@ void USART_Init(void)
  *  Input : p_data, pointer on data frame to send
  *          length, length of frame
  */
-void USART_Send(char port, char *p_data, uint16_t length)
+void USART_Send(uint8_t port, uint8_t *p_data, uint16_t length)
 {
 	uint8_t i = 0;
 	while (length)
@@ -263,7 +263,7 @@ ISR(USART1_RX_vect)
 			if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
 			{
 				
-				printf("P\n");
+				printf("P");
 				sei();
 				lib9p_process_message(&in_buf[1]);
 				cli();

@@ -358,13 +358,6 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	return 0;
 }
 
-struct fidreadargs {
-	uint16_t tag;
-	Fid * fp;
-	uint64_t * offset;
-	uint32_t * count;
-};
-
 int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
@@ -440,10 +433,9 @@ void lib9p_process_message(buffer_t *msg)
 {
 	uint8_t reply[sizeof(Qid) + 4]; // 12 for Tversion, 17 for Topen
 	uint16_t oldtag; 	// Tflush
-	//uint32_t len = *((uint32_t *)(msg->p_out));
 	uint32_t newfid; // Twalk
 	int32_t written; // Twrite
-	struct fidreadargs freadargs;
+
 	msg->p_out += 4;
 	msg->count -= 4;
 	

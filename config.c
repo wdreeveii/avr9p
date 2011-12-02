@@ -12,14 +12,13 @@
 
 
 #define SERIALNUM_LENGTH		8
-#define EVENTLIST_SIZE		16
 
 struct s_config {
 	uint16_t			S1Baud;
 	uint16_t			S2Baud;
 	int8_t			SerialNumber[SERIALNUM_LENGTH];
 	uint8_t 			NumEvents;
-	struct s_mucron	EventList[EVENTLIST_SIZE];
+	struct s_mucron	EventList[MUCRON_EVENTLIST_SIZE];
 };
 
 uint8_t EEPROM_read(uint16_t uiAddress)
@@ -64,11 +63,11 @@ void EEPROM_write_page(uint16_t start_address, uint8_t *data, uint16_t length)
 /* EEPROM memory is much too slow to iterate through every time a timer tick is processed.
  * Keep an event list in ram that is initialized everytime the micro starts up
  */
-struct s_mucron ramEventList[EVENTLIST_SIZE];
+struct s_mucron ramEventList[MUCRON_EVENTLIST_SIZE];
 
 void config_Init()
 {
-	EEPROM_read_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * EVENTLIST_SIZE);
+	EEPROM_read_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * MUCRON_EVENTLIST_SIZE);
 }
 
 uint16 config_get_baud(uint8 port)
@@ -103,12 +102,17 @@ void config_set_baud(uint8 port, uint16 baud)
 	}	
 }
 
+struct s_mucron * mucron_get_eventlist()
+{
+	return ramEventList;
+}
+
 void blank_eventlist_eeprom()
 {
-	char tmp[sizeof(struct s_mucron)] = {0};
+	uint8_t tmp[sizeof(struct s_mucron)] = {0};
 	
 	uint8_t index;
-	for (index = 0; index < EVENTLIST_SIZE; index++)
+	for (index = 0; index < MUCRON_EVENTLIST_SIZE; index++)
 	{
 		EEPROM_write_page(offsetof(struct s_config, EventList) + (sizeof(struct s_mucron) * index), tmp, sizeof(struct s_mucron) );
 	}
@@ -116,49 +120,9 @@ void blank_eventlist_eeprom()
 
 void mucron_write_mem()
 {
-	EEPROM_write_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * EVENTLIST_SIZE);
+	EEPROM_write_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * MUCRON_EVENTLIST_SIZE);
 }
 
-void mucron_list_events()
-{
-	uint16_t event_index = 0;
-	struct s_mucron * event_ptr;
-	uint8_t number_string[16];
-	
-	DSEND(0, "Start Event List\n");
-	
-	for(; event_index < EVENTLIST_SIZE; event_index++)
-	{
-		event_ptr = ramEventList + event_index;
-		if (event_ptr->start_time && event_ptr->on_len)
-		{
-			ultoa(event_index, number_string, 10);
-			DSEND(0, "INDEX: ");
-			DSEND(0, number_string);
-			DSEND(0, "\n");
-			ultoa(event_ptr->start_time, number_string, 10);
-			DSEND(0, "Start time: ");
-			DSEND(0, number_string);
-			DSEND(0, "\n");
-			
-			utoa(event_ptr->on_len, number_string, 10);
-			DSEND(0, "On Time: ");
-			DSEND(0, number_string);
-			DSEND(0, "\n");
-			
-			utoa(event_ptr->off_len, number_string, 10);
-			DSEND(0, "Off Time: ");
-			DSEND(0, number_string);
-			DSEND(0, "\n");
-			
-			utoa(event_ptr->port, number_string, 10);
-			DSEND(0, "Port: ");
-			DSEND(0, number_string);
-			DSEND(0, "\n");			
-		}
-	}
-	DSEND(0, "End Event List\n");
-}
 void mucron_delete_event(uint16_t event_index)
 {
 	struct s_mucron zerodevent = {};
@@ -175,7 +139,7 @@ void mucron_save_event(struct s_mucron *timerblock)
 	struct s_mucron * event_ptr;
 
 	//blank_eventlist_eeprom();
-	for (; event_index < EVENTLIST_SIZE; event_index++)
+	for (; event_index < MUCRON_EVENTLIST_SIZE; event_index++)
 	{
 		event_ptr = ramEventList + event_index;
 		if (!event_ptr->start_time && !event_ptr->on_len)
@@ -194,7 +158,7 @@ void mucron_tick()
 	struct s_mucron * event_ptr;
 	time_t timestamp = time();
 	time_t modsecs;
-	for (; event_index < EVENTLIST_SIZE; event_index++)
+	for (; event_index < MUCRON_EVENTLIST_SIZE; event_index++)
 	{
 		event_ptr = ramEventList + event_index;
 		if (event_ptr->start_time && event_ptr->on_len)
@@ -213,5 +177,4 @@ void mucron_tick()
 		}
 	}
 }
-
 

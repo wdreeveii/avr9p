@@ -136,6 +136,7 @@ int set_time(time_t timestamp)
 	dateblock.secs = rem_secs % 10;
 	rv = m41t83_write_bytes(0x01, 7,(void*) &dateblock);
 	if (rv == -1) printf("RTC set_time WRITE ERROR\n");
+	return 0;
 }
 
 /* time_t get_time()
@@ -231,9 +232,9 @@ void print_time(void)
 {
 	time_t timestamp = time();
 	uint8_t datestring[16];
-	ultoa(timestamp, datestring, 10);
-	USART_Send(0, datestring, strlen(datestring));
-	USART_Send(0, "\n", 1);
+	ultoa(timestamp, (char *)datestring, 10);
+	USART_Send(0, datestring, strlen((char *)datestring));
+	USART_Send(0, (uint8_t *)"\n", 1);
 }
 
 // rtc 1hz square wave tick

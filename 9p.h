@@ -121,8 +121,8 @@ typedef struct DirectoryEntry {
 	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t * offset, uint32_t * count, uint8_t *buf);
 } DirectoryEntry;
 
-void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
-void send_error_reply(uint16_t tag, char *msg);
+void p9_send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
+void p9_send_error_reply(uint16_t tag, char *msg);
 
 void lib9p_process_message(buffer_t *msg);
 uint8_t p9_register_de(DirectoryEntry * entry);

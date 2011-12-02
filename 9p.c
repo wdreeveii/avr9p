@@ -168,10 +168,9 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	} data;
 	uint8_t walklistend = 0;
 	uint8_t filefound = 0;
-	printf("walks: %d\n", numwalks);
 	if (numwalks == 0)
 	{
-		send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
+		p9_send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
 		return;
 	
 	}
@@ -179,13 +178,12 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	dp = qid_map[fp->qid.path];
 	if (dp->sub == 0)
 	{
-		send_error_reply(tag, "Not a directory.");
+		p9_send_error_reply(tag, "Not a directory.");
 		return;
 	}
 	
 	for (; walks > 0; walks--)
 	{
-		printf("doing walk\n");
 		namesize = *((uint16_t *)(namesarr));
 		filefound = 0;
 		if (dp == qid_map[QID_ROOT] && 0 == strncmp((char*)namesarr + 2, "..", 2))
@@ -199,9 +197,8 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 		// this is weird, requires all sub dirs to be listed right after parent dir in qid_map
 		for (sdp = dp->sub; sdp->name; sdp++)
 		{
-			printf("walk file %s\n", sdp->name);
-			if (strncmp(sdp->name, namesarr + 2, namesize) == 0) {
-				printf("walk file found\n");
+			if (strncmp(sdp->name, (char*)namesarr + 2, namesize) == 0) {
+				printf("walk file found %s\n", sdp->name);
 				filefound = 1;
 				data.walklist[walklistend++] = sdp->qid;
 				dp = sdp;
@@ -213,7 +210,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 			// first loop when walks == numwalks
 			if(walks == numwalks)
 			{
-				send_error_reply(tag, "File not found.");
+				p9_send_error_reply(tag, "File not found.");
 				return;
 			}
 			break;
@@ -229,7 +226,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	
 	data.size = walklistend;
 	
-	send_reply(Rwalk, tag, (uint8_t *)&data, 2 + sizeof(Qid)*walklistend);
+	p9_send_reply(Rwalk, tag, (uint8_t *)&data, 2 + sizeof(Qid)*walklistend);
 	
 	return;
 }
@@ -296,7 +293,7 @@ void fidstat(uint16_t tag, Fid *fp)
 	mkstat(dp, &data.data);
 	data.size_dup = data.data.size + 2;
 	
-	send_reply(Rstat, tag, (uint8_t *)&data, data.size_dup);
+	p9_send_reply(Rstat, tag, (uint8_t *)&data, data.size_dup);
 }
 
 int8_t fidopen(Fid *fp, uint8_t mode)
@@ -328,7 +325,7 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	
 	uint16_t numcpybytes = 0;
 	*((uint32_t *)reply) = 0;
-	printf("ABCD %lu %lu #######       %p\n", *(count), *(offset), count);
+	printf("ABCD %lu %lu #######       %p\n", *(count), (uint32_t)*(offset), count);
 	
 	for (sdp = dp->sub; sdp->name; sdp++)
 	{
@@ -354,7 +351,7 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 		*count -= numcpybytes;
 	}
 	printf("readdir len %u : stated %lu\n", replyptr - reply, *((uint32_t *)(reply)));
-	send_reply(Rread, tag, reply, replyptr - reply);
+	p9_send_reply(Rread, tag, reply, replyptr - reply);
 	return 0;
 }
 
@@ -363,7 +360,7 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	const DirectoryEntry *dp;
 	//hahaha = 2;
 	dp = qid_map[fp->qid.path];
-	printf("WHAT %lu %lu\n", *(count), *(offset));
+	printf("WHAT %lu %lu\n", *(count), (uint32_t)*(offset));
 	//printf("Read\n");
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
@@ -396,7 +393,7 @@ int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 /* size[4]type[1]tag[2]data_size[2]*/
 #define ERR_HEADER_SIZE 9
 
-void send_error_reply(uint16_t tag, char *msg)
+void p9_send_error_reply(uint16_t tag, char *msg)
 {
 	uint16_t len = strlen(msg);
 	uint8_t data[ERR_HEADER_SIZE];
@@ -412,7 +409,7 @@ void send_error_reply(uint16_t tag, char *msg)
 	USART_Send(0, (uint8_t *)msg, len);
 }
 
-void send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
+void p9_send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 {
 	/* 7 = size[4]type[1]tag[2] */
 	uint8_t data[7];
@@ -453,18 +450,18 @@ void lib9p_process_message(buffer_t *msg)
 			*((uint16_t *)(reply + 4)) = 6;
 			memcpy(reply + 6, "9P2000", 6);
 			
-			send_reply(Rversion, tag, reply, 12);
+			p9_send_reply(Rversion, tag, reply, 12);
 			return;
 		case Tflush:
 			oldtag = *((uint16_t *) (msg->p_out));
 			flushtag(oldtag);
-			send_reply(Rflush, tag, 0, 0);
+			p9_send_reply(Rflush, tag, 0, 0);
 			return;
 		case Tauth:
-			send_error_reply(tag, "Auth not required.");
+			p9_send_error_reply(tag, "Auth not required.");
 			return;
 		case Twstat:
-			send_reply(Rwstat, tag, 0, 0); // fake response instead of error for v9fs
+			p9_send_reply(Rwstat, tag, 0, 0); // fake response instead of error for v9fs
 			//send_error_reply(tag, "Unable to change file stat.");
 			return;
 	}
@@ -480,7 +477,7 @@ void lib9p_process_message(buffer_t *msg)
 		case Tattach:
 			if (fp)
 			{
-				send_error_reply(tag, "fid in use");	
+				p9_send_error_reply(tag, "fid in use");	
 			}
 			else
 			{	// other fields in this transaction
@@ -489,22 +486,22 @@ void lib9p_process_message(buffer_t *msg)
 				// aname[s] -- no other filesystems
 				
 				fp = fidcreate(fid, &qid_root);
-				send_reply(Rattach, tag, (uint8_t *) &fp->qid, sizeof(Qid));
+				p9_send_reply(Rattach, tag, (uint8_t *) &fp->qid, sizeof(Qid));
 			}
 			return;
 		case Tclunk:
 		case Tremove:
 			if (!fp)
 			{
-				send_error_reply(tag, "no such fid");
+				p9_send_error_reply(tag, "no such fid");
 			}
 			else
 			{
 				fiddelete(fp);
 				if (type == Tremove)
-					send_error_reply(tag, "can't remove");
+					p9_send_error_reply(tag, "can't remove");
 				else
-					send_reply(Rclunk, tag, 0, 0);
+					p9_send_reply(Rclunk, tag, 0, 0);
 			}
 			return;
 		case Twalk:
@@ -516,14 +513,14 @@ void lib9p_process_message(buffer_t *msg)
 	
 			if (fp->open)
 			{
-				send_error_reply(tag, "Fid opened");
+				p9_send_error_reply(tag, "Fid opened");
 				return;
 			}
 			if (fid  != newfid)
 			{
 				if ( findfid( newfid ) )
 				{
-					send_error_reply(tag, "New fid in use.");
+					p9_send_error_reply(tag, "New fid in use.");
 					return;
 				}
 					
@@ -541,26 +538,25 @@ void lib9p_process_message(buffer_t *msg)
 			fidstat(tag, fp);
 			return;
 		case Tcreate:
-			send_error_reply(tag, "Can't create");
+			p9_send_error_reply(tag, "Can't create");
 			return;
 		case Topen:
 			if (!fidopen(fp, msg->p_out[0]))
-				send_error_reply(tag, "Can't open");
+				p9_send_error_reply(tag, "Can't open");
 			else
 			{
 				// send qid and iounit (maximum length to be sent before the request is segmented)
 				memcpy(reply, (uint8_t *)&fp->qid, sizeof(Qid));
 				*((uint32_t *)(reply + sizeof(Qid))) = IOUNIT;
-				send_reply(Ropen, tag, reply, sizeof(Qid) + 4);
+				p9_send_reply(Ropen, tag, reply, sizeof(Qid) + 4);
 			}
 			return;
 		case Tread:
 			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
 				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
 			
-			printf("TREAD CNT %lu  %lu\n", *((uint32_t *)(msg->p_out + 8)), *((uint64_t *)msg->p_out));
 			if (fidread(tag, fp, (uint64_t *)msg->p_out, (uint32_t *)(msg->p_out + 8)) < 0)
-				send_error_reply(tag, "Can't read");
+				p9_send_error_reply(tag, "Can't read");
 			return;
 		case Twrite:
 			written = fidwrite(fp, 
@@ -568,9 +564,9 @@ void lib9p_process_message(buffer_t *msg)
 								((uint32_t *)(msg->p_out + 8)), 
 								msg->p_out + 12);
 			if (written < 0)
-				send_error_reply(tag, "can't write");
+				p9_send_error_reply(tag, "can't write");
 			else {
-				send_reply(Rwrite, tag, (uint8_t *)&written, 4);
+				p9_send_reply(Rwrite, tag, (uint8_t *)&written, 4);
 			}
 			break;
 	}

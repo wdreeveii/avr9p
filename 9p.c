@@ -193,12 +193,12 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 			data.walklist[walklistend++] = dp->qid;
 			goto continue_loop;
 		}
-		printf("walk base %s\n", dp->name);
+		//printf("walk base %s\n", dp->name);
 		// this is weird, requires all sub dirs to be listed right after parent dir in qid_map
 		for (sdp = dp->sub; sdp->name; sdp++)
 		{
 			if (strncmp(sdp->name, (char*)namesarr + 2, namesize) == 0) {
-				printf("walk file found %s\n", sdp->name);
+				//printf("walk file found %s\n", sdp->name);
 				filefound = 1;
 				data.walklist[walklistend++] = sdp->qid;
 				dp = sdp;
@@ -325,7 +325,6 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 	
 	uint16_t numcpybytes = 0;
 	*((uint32_t *)reply) = 0;
-	printf("ABCD %lu %lu #######       %p\n", *(count), (uint32_t)*(offset), count);
 	
 	for (sdp = dp->sub; sdp->name; sdp++)
 	{
@@ -350,7 +349,6 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 		*offset += numcpybytes;
 		*count -= numcpybytes;
 	}
-	printf("readdir len %u : stated %lu\n", replyptr - reply, *((uint32_t *)(reply)));
 	p9_send_reply(Rread, tag, reply, replyptr - reply);
 	return 0;
 }
@@ -360,8 +358,7 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	const DirectoryEntry *dp;
 	//hahaha = 2;
 	dp = qid_map[fp->qid.path];
-	printf("WHAT %lu %lu\n", *(count), (uint32_t)*(offset));
-	//printf("Read\n");
+
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
 			return -1;
@@ -376,9 +373,10 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	return (*dp->read)(dp, tag, offset, count);
 }
 
-int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
+int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 {
 	const DirectoryEntry *dp;
+	int16_t byteswritten;
 	if (fp->qid.type & QTDIR)
 		return -1;		/* can't write directories */
 	if (!fp->open)
@@ -387,7 +385,9 @@ int32_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 	dp = qid_map[fp->qid.path];
 	if (!dp->write)
 		return -1;		/* no write method */
-	return (*dp->write)(dp, offset, count, buf);
+	byteswritten = (*dp->write)(dp, offset, count, buf);
+	printf("j\n");
+	return byteswritten;
 }
 
 /* size[4]type[1]tag[2]data_size[2]*/
@@ -568,7 +568,7 @@ void lib9p_process_message(buffer_t *msg)
 			else {
 				p9_send_reply(Rwrite, tag, (uint8_t *)&written, 4);
 			}
-			break;
+			return;
 	}
 	
 }

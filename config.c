@@ -2,8 +2,10 @@
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #include <avr/io.h>
+#include <util/atomic.h>
 
 #include "config.h"
 #include "rtc.h"
@@ -125,12 +127,14 @@ void mucron_write_mem()
 
 void mucron_delete_event(uint16_t event_index)
 {
-	struct s_mucron zerodevent = {};
-	memcpy(ramEventList + event_index, &zerodevent, sizeof(struct s_mucron));
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		*(ramEventList + event_index) = (struct s_mucron){0};
+	}
 	EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index,
 						(void*)(ramEventList+event_index),
 						sizeof(struct s_mucron));
-	DSEND(0, "Delete Event Finished\n");
+	//DSEND(0, "Delete Event Finished\n");
 }
 
 void mucron_save_event(struct s_mucron *timerblock)
@@ -139,19 +143,20 @@ void mucron_save_event(struct s_mucron *timerblock)
 	struct s_mucron * event_ptr;
 
 	//blank_eventlist_eeprom();
-	for (; event_index < MUCRON_EVENTLIST_SIZE; event_index++)
+	for (event_ptr = ramEventList; event_index < MUCRON_EVENTLIST_SIZE; event_ptr++, event_index++)
 	{
-		event_ptr = ramEventList + event_index;
 		if (!event_ptr->start_time && !event_ptr->on_len)
 		{
-			memcpy(event_ptr, timerblock, sizeof(struct s_mucron));
+			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+			{
+				memcpy(event_ptr, timerblock, sizeof(struct s_mucron));
+			}
 			EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index, (void*)event_ptr, sizeof(struct s_mucron));
 			break;
 		}
 	}
-	
-	DSEND(0, "Save Event Finished\n");
 }
+
 void mucron_tick()
 {
 	uint16_t event_index = 0;

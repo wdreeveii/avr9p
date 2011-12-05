@@ -252,7 +252,7 @@ ISR(PCINT1_vect, ISR_NOBLOCK)
 			current_time_global = copy;
 		}
 		print_time();
-		//mucron_tick();
+		mucron_tick();
 		soft_timer_tick();
 		// DO WHAT EVER YOU NEED TO DO ONCE A SECOND HERE
 	}

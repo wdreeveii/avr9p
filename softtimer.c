@@ -78,8 +78,7 @@ void soft_timer_tick()
 	{
 		for (index = 0; index < MAXEVENTS; index++)
 		{
-			//printf("%lu\n", st_event_list_global[index].trigger);
-			if (st_event_list_global[index].trigger == current_time)
+			if (st_event_list_global[index].trigger != 0 && st_event_list_global[index].trigger <= current_time)
 			{
 				st_event_list_global[index].trigger = 0;
 				exec_nonatomic(st_event_list_global[index].cb);

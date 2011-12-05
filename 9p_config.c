@@ -5,6 +5,8 @@
 #include "config.h"
 #include "9p.h"
 #include "usart.h"
+#include "rtc.h"
+
 int16_t demowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data);
 int16_t demoread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
 
@@ -143,13 +145,14 @@ int16_t mucron_build_save_event(const struct DirectoryEntry *dp, uint64_t *offse
 	// need to null terminate the string in order to use sscanf... easiest way to do this
 	uint8_t datacpy[*count + 1];
 	datacpy[*count] = 0;
-	
+	uint16_t portcpy; // sscanf will stuff 2 bytes so have to handle that here
 	struct s_mucron data;
-	printf("building event.");
+
 	memcpy(datacpy, indata, *count);
 	
-	if (sscanf((char *)datacpy, "%lu %u %u %u",(uint32_t *) &data.start_time, &data.on_len, &data.off_len,(uint16_t *) &data.port) == 4)
+	if (sscanf((char *)datacpy, "%lu %u %u %u",(uint32_t *) &data.start_time, &data.on_len, &data.off_len, &portcpy) == 4)
 	{
+		data.port = portcpy;
 		mucron_save_event(&data);
 	}
 
@@ -159,18 +162,25 @@ int16_t mucron_build_delete_event(const struct DirectoryEntry *dp, uint64_t *off
 {
 	uint8_t datacpy[*count + 1];
 	datacpy[*count] = 0;
-	uint8_t index;
+	uint16_t index;
 	memcpy(datacpy, indata, *count);
-	if (sscanf((char *)datacpy, "%u", (uint16_t *)&index) == 1)
+	if (sscanf((char *)datacpy, "%u", &index) == 1)
 	{
 		mucron_delete_event(index);
 	}
-	printf("i\n");
 	return *count;
 }
 
 int16_t rtc_write_clock(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
 {
+	uint8_t datacpy[*count + 1];
+	datacpy[*count] = 0;
+	time_t newtime;
+	memcpy(datacpy, indata, *count);
+	if (sscanf((char *)datacpy, "%lu", &newtime) == 1)
+	{
+		set_time(newtime);
+	}
 	return *count;
 }
 

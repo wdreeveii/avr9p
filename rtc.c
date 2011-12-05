@@ -92,7 +92,7 @@ int isLeapYear(unsigned long year)
  * Author: Whitham D. Reeve II
  */
 int set_time(time_t timestamp)
-{	
+{
 	struct m41DateBlock dateblock;
 	uint8_t rv = 0;
 	
@@ -105,7 +105,7 @@ int set_time(time_t timestamp)
 	unsigned long guess_leap_years = leapYearsBefore(1970ul + (total_days/365ul)) - leapYearsBefore(1970ul);
 	unsigned long total_years = 1970ul + ((total_days - guess_leap_years)/365ul);
 	unsigned long rem_days = ((total_days - guess_leap_years) % 365ul);
-
+	
 	dateblock.tYear = (total_years % 100) / 10ul;
 	dateblock.Year = (total_years % 100) % 10ul;
 
@@ -252,7 +252,7 @@ ISR(PCINT1_vect, ISR_NOBLOCK)
 			current_time_global = copy;
 		}
 		print_time();
-		mucron_tick();
+		//mucron_tick();
 		soft_timer_tick();
 		// DO WHAT EVER YOU NEED TO DO ONCE A SECOND HERE
 	}

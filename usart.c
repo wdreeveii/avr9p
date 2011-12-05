@@ -245,10 +245,7 @@ ISR(USART1_RX_vect)
 	{
 		/* Else, send received char into input buffer */
 		garbage = UDR1;
-		//USART_Send(0, &garbage, 1);
-		//printf("%x|", (unsigned char)garbage);
 		Buffer_Push(&in_buf[1], garbage);
-		//USART_Send(0, &garbage, 1);
 		
 		if (usart1_timeout_slot < 0)
 			usart1_timeout_slot = set_timer(time() + TIMEOUT_SECS, &usart1_timeout);

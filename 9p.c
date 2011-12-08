@@ -155,7 +155,7 @@ void fiddelete(Fid *fp)
 	return;
 }
 
-void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
+void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t numwalks, uint8_t *namesarr)
 {
 	const DirectoryEntry *sdp;
 	const DirectoryEntry *dp;
@@ -170,6 +170,9 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	uint8_t filefound = 0;
 	if (numwalks == 0)
 	{
+		if (*fid != *newfid)
+			fidcreate(*newfid, &fp->qid);
+		
 		p9_send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
 		return;
 	
@@ -188,8 +191,6 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 		filefound = 0;
 		if (dp == qid_map[QID_ROOT] && 0 == strncmp((char*)namesarr + 2, "..", 2))
 		{
-			USART_Send(0, namesarr + 2, namesize);
-			printf("\n");
 			data.walklist[walklistend++] = dp->qid;
 			goto continue_loop;
 		}
@@ -208,7 +209,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 			// first loop when walks == numwalks
 			if(walks == numwalks)
 			{
-				p9_send_error_reply(tag, "File not found.");
+				p9_send_error_reply(tag, "No such file or directory.");
 				return;
 			}
 			break;
@@ -219,7 +220,10 @@ void fidwalk(uint16_t tag, Fid *fp, uint16_t numwalks, uint8_t *namesarr)
 	
 	if (walklistend == numwalks)
 	{
-		fp->qid = data.walklist[walklistend - 1];
+		if (*fid == *newfid)
+			fp->qid = data.walklist[walklistend - 1];
+		else
+			fidcreate(*newfid, &data.walklist[walklistend-1]);
 	}
 	
 	data.size = walklistend;
@@ -354,7 +358,7 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
-
+	//hahaha = 2;
 	dp = qid_map[fp->qid.path];
 	
 	if (!dp)
@@ -369,13 +373,15 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	if (!dp->read)
 		return -1;
 	
+	
+	//printf("Reading FILE\n");
 	return (*dp->read)(dp, tag, offset, count);
 }
 
 int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 {
 	const DirectoryEntry *dp;
-
+	int16_t byteswritten;
 	if (fp->qid.type & QTDIR)
 		return -1;		/* can't write directories */
 	if (!fp->open)
@@ -384,7 +390,9 @@ int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 	dp = qid_map[fp->qid.path];
 	if (!dp || !dp->write)
 		return -1;		/* no write method */
-	return (*dp->write)(dp, offset, count, buf);
+	byteswritten = (*dp->write)(dp, offset, count, buf);
+	//printf("j\n");
+	return byteswritten;
 }
 
 /* size[4]type[1]tag[2]data_size[2]*/
@@ -427,7 +435,6 @@ void lib9p_process_message(buffer_t *msg)
 {
 	uint8_t reply[sizeof(Qid) + 4]; // 12 for Tversion, 17 for Topen
 	uint16_t oldtag; 	// Tflush
-	uint32_t newfid; // Twalk
 	int32_t written; // Twrite
 
 	msg->p_out += 4;
@@ -506,30 +513,26 @@ void lib9p_process_message(buffer_t *msg)
 			// newfid[4]
 			// nwname[2]
 			// nwname*(wname[s])
-			newfid = *((uint32_t *)(msg->p_out));
 	
 			if (fp->open)
 			{
 				p9_send_error_reply(tag, "Fid opened");
 				return;
 			}
-			if (fid  != newfid)
+			if (fid  != *((uint32_t *)(msg->p_out)))
 			{
-				if ( findfid( newfid ) )
+				if ( findfid( *((uint32_t *)(msg->p_out)) ) )
 				{
 					p9_send_error_reply(tag, "New fid in use.");
 					return;
 				}
-					
-				fidwalk ( tag,
-					fidcreate( newfid, &fp->qid ),
-					*((uint16_t *) (msg->p_out + 4)),
-					msg->p_out + 6);
 			}
-			else
-			{
-				fidwalk(tag, fp, *((uint16_t *) (msg->p_out + 4)), msg->p_out + 6);	
-			}
+			fidwalk ( tag, 
+						fp, 
+						&fid, 
+						(uint32_t *)(msg->p_out), 
+						*((uint16_t *) (msg->p_out + 4)), 
+						msg->p_out + 6);
 			return;
 		case Tstat:
 			fidstat(tag, fp);

@@ -358,7 +358,6 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
-	//hahaha = 2;
 	dp = qid_map[fp->qid.path];
 	
 	if (!dp)
@@ -373,15 +372,13 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	if (!dp->read)
 		return -1;
 	
-	
-	//printf("Reading FILE\n");
 	return (*dp->read)(dp, tag, offset, count);
 }
 
 int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 {
 	const DirectoryEntry *dp;
-	int16_t byteswritten;
+
 	if (fp->qid.type & QTDIR)
 		return -1;		/* can't write directories */
 	if (!fp->open)
@@ -390,9 +387,7 @@ int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 	dp = qid_map[fp->qid.path];
 	if (!dp || !dp->write)
 		return -1;		/* no write method */
-	byteswritten = (*dp->write)(dp, offset, count, buf);
-	//printf("j\n");
-	return byteswritten;
+	return (*dp->write)(dp, offset, count, buf);
 }
 
 /* size[4]type[1]tag[2]data_size[2]*/

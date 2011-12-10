@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 		close(fd);
 		return;
 	}
-	// set terminal modes
+	// get terminal modes
 	err = tcgetattr(fd, &serialmode);
 	if (err < 0)
 	{
@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 		close(fd);
 		return;
 	}
-
+	// configure to raw
 	serialmode.c_iflag &= ~(IGNBRK | BRKINT | IGNPAR | PARMRK | INPCK | ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXOFF | IUCLC | IXANY | IMAXBEL | IUTF8);
 	serialmode.c_oflag &= ~(OPOST | OLCUC | OCRNL | ONLCR | ONOCR | ONLRET | OFILL | OFDEL );
 	serialmode.c_lflag &= ~(ISIG | ICANON | IEXTEN | ECHO | ECHOE | ECHOK | ECHONL | NOFLSH | XCASE | TOSTOP | ECHOPRT | ECHOCTL | ECHOKE);
@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
 		close(fd);
 		return;
 	}
+	// set new terminal modes
 	err = tcsetattr(fd, TCSANOW, &serialmode);
 	if (err < 0)
 	{

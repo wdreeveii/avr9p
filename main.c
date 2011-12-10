@@ -7,6 +7,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
+#include <util/atomic.h>
 #include <math.h>
 
 #include "usart.h"
@@ -15,6 +16,7 @@
 #include "rtc.h"
 #include "softtimer.h"
 #include "9p.h"
+#include "9p_pos.h"
 
 static void hardware_init()
 {	
@@ -47,6 +49,11 @@ int main(void)
 	testtimerslot = set_timer(time() + 5, &test);
 	while (1)
 	{
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			pos_global++;
+		}
+		_delay_ms(10);
 	}	
 	// Never reached.
 	return(0);

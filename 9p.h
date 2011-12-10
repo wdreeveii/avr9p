@@ -127,4 +127,8 @@ void p9_send_error_reply(uint16_t tag, char *msg);
 void lib9p_process_message(buffer_t *msg);
 uint8_t p9_register_de(DirectoryEntry * entry);
 void p9_init();
+
+int16_t p9_nowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data);
+int16_t p9_noread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
+
 #endif

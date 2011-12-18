@@ -181,7 +181,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t 
 			data.walklist[walklistend++] = dp->qid;
 			goto continue_loop;
 		}
-		// this is weird, requires all sub dirs to be listed right after parent dir in qid_map
+		// find the file
 		for (sdp = dp->sub; sdp->name; sdp++)
 		{
 			if (strncmp(sdp->name, (char*)namesarr + 2, namesize) == 0) {

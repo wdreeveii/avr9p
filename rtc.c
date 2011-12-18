@@ -237,7 +237,11 @@ void print_time(void)
 	USART_Send(0, (uint8_t *)"\n", 1);
 }
 
-// rtc 1hz square wave tick
+/* ISR Pin Change Interrupt 1
+ * NOBLOCK because there is a lot to do here.
+ * Execute everything that needs to happen once a second
+ * Author: Whitham D. Reeve II
+ */
 ISR(PCINT1_vect, ISR_NOBLOCK)
 {
 	time_t copy;
@@ -285,7 +289,7 @@ void rtc_squarewave_enable(void)
 	if (rv == -1) printf("RTC squarewave_enable WRITE ERROR\n");
 }
 
-/* int8_t rtc_check_halt(void)
+/* uint8_t rtc_check_halt(void)
  * Ask the m41t83 chip if the halt bit is set
  * Author: Whitham D. Reeve II
  */

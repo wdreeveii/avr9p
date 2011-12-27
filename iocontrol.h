@@ -5,4 +5,5 @@
 
 void iocontrol(unsigned char port, unsigned char state);
 void ioflip(unsigned char port);
+
 #endif

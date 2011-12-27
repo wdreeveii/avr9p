@@ -1,6 +1,5 @@
 #include "buffer.h"
 
-
 /*
  * Name : void Buffer_Reset(buffer_t *buffer)
  *

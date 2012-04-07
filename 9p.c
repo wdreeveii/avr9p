@@ -46,10 +46,10 @@ int16_t p9_nowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *
 	return *count;
 }
 
-int16_t p9_noread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t p9_noread(uint8_t outchannel, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[4] = {0};
-	p9_send_reply(Rread, tag, reply, 4);
+	p9_send_reply(outchannel, Rread, tag, reply, 4);
 	return 0;
 }
 
@@ -142,7 +142,7 @@ void fiddelete(Fid *fp)
 	return;
 }
 
-void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t numwalks, uint8_t *namesarr)
+void fidwalk(uint8_t outchannel, uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t numwalks, uint8_t *namesarr)
 {
 	const DirectoryEntry *sdp;
 	const DirectoryEntry *dp;
@@ -160,7 +160,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t 
 		if (*fid != *newfid)
 			fidcreate(*newfid, &fp->qid);
 		
-		p9_send_reply(Rwalk, tag, (uint8_t *)&numwalks, 2);
+		p9_send_reply(outchannel, Rwalk, tag, (uint8_t *)&numwalks, 2);
 		return;
 	
 	}
@@ -168,7 +168,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t 
 	dp = qid_map[fp->qid.path];
 	if (dp->sub == 0)
 	{
-		p9_send_error_reply(tag, "Not a directory.");
+		p9_send_error_reply(outchannel, tag, "Not a directory.");
 		return;
 	}
 	
@@ -196,7 +196,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t 
 			// first loop when walks == numwalks
 			if(walks == numwalks)
 			{
-				p9_send_error_reply(tag, "No such file or directory.");
+				p9_send_error_reply(outchannel, tag, "No such file or directory.");
 				return;
 			}
 			break;
@@ -215,7 +215,7 @@ void fidwalk(uint16_t tag, Fid *fp, uint32_t * fid, uint32_t * newfid, uint16_t 
 	
 	data.size = walklistend;
 	
-	p9_send_reply(Rwalk, tag, (uint8_t *)&data, 2 + sizeof(Qid)*walklistend);
+	p9_send_reply(outchannel, Rwalk, tag, (uint8_t *)&data, 2 + sizeof(Qid)*walklistend);
 	
 	return;
 }
@@ -272,7 +272,7 @@ struct Rstat_data {
 	uint16_t	size_dup;
 	Stat		data;
 };
-void fidstat(uint16_t tag, Fid *fp)
+void fidstat(uint8_t outchannel, uint16_t tag, Fid *fp)
 {
  	struct Rstat_data data = {};
 	const DirectoryEntry *dp;
@@ -282,7 +282,7 @@ void fidstat(uint16_t tag, Fid *fp)
 	mkstat(dp, &data.data);
 	data.size_dup = data.data.size + 2;
 	
-	p9_send_reply(Rstat, tag, (uint8_t *)&data, data.size_dup);
+	p9_send_reply(outchannel, Rstat, tag, (uint8_t *)&data, data.size_dup);
 }
 
 int8_t fidopen(Fid *fp, uint8_t mode)
@@ -302,7 +302,7 @@ struct Rreaddir_data {
 	uint16_t size_dup;
 };
 #define MIN(a,b) (a < b) ? a : b
-int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint32_t * count)
+int8_t fidreaddir(uint8_t outchannel, uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint32_t * count)
 {
 	const DirectoryEntry *sdp;
 	uint8_t reply[*count + 4];
@@ -338,11 +338,11 @@ int8_t fidreaddir(uint16_t tag, const DirectoryEntry *dp, uint64_t *offset, uint
 		*offset += numcpybytes;
 		*count -= numcpybytes;
 	}
-	p9_send_reply(Rread, tag, reply, replyptr - reply);
+	p9_send_reply(outchannel, Rread, tag, reply, replyptr - reply);
 	return 0;
 }
 
-int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
+int8_t fidread(uint8_t outchannel, uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 {
 	const DirectoryEntry *dp;
 	dp = qid_map[fp->qid.path];
@@ -353,13 +353,13 @@ int8_t fidread(uint16_t tag, Fid * fp, uint64_t * offset, uint32_t * count)
 	if (fp->qid.type & QTDIR) {
 		if (!fp->open)
 			return -1;
-		return fidreaddir(tag, dp, offset, count);
+		return fidreaddir(outchannel, tag, dp, offset, count);
 	}
 	/* right, now that that's out of the way */
 	if (!dp->read)
 		return -1;
 	
-	return (*dp->read)(dp, tag, offset, count);
+	return (*dp->read)(outchannel, dp, tag, offset, count);
 }
 
 int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
@@ -380,7 +380,7 @@ int16_t fidwrite(Fid *fp, uint64_t *offset, uint32_t *count, uint8_t *buf)
 /* size[4]type[1]tag[2]data_size[2]*/
 #define ERR_HEADER_SIZE 9
 
-void p9_send_error_reply(uint16_t tag, char *msg)
+void p9_send_error_reply(uint8_t outchannel, uint16_t tag, char *msg)
 {
 	uint16_t len = strlen(msg);
 	uint8_t data[ERR_HEADER_SIZE];
@@ -390,13 +390,11 @@ void p9_send_error_reply(uint16_t tag, char *msg)
 	*((uint16_t *)(data + 5)) = tag;
 	*((uint16_t *)(data + 7)) = len;
 	
-	USART_Send(1, data, ERR_HEADER_SIZE);
-	USART_Send(1, (uint8_t *)msg, len);
-	USART_Send(0, data, ERR_HEADER_SIZE);
-	USART_Send(0, (uint8_t *)msg, len);
+	USART_Send(outchannel, data, ERR_HEADER_SIZE);
+	USART_Send(outchannel, (uint8_t *)msg, len);
 }
 
-void p9_send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
+void p9_send_reply(uint8_t outchannel, uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 {
 	/* 7 = size[4]type[1]tag[2] */
 	uint8_t data[7];
@@ -404,16 +402,16 @@ void p9_send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len)
 	*((uint8_t *)(data + 4)) = type;
 	*((uint16_t *)(data + 5)) = tag;
 	
-	USART_Send(1, data, 7);
+	USART_Send(outchannel, data, 7);
 	
 	if (msg)
 	{
-		USART_Send(1, msg, len);
+		USART_Send(outchannel, msg, len);
 	}
 }
 
 
-void lib9p_process_message(buffer_t *msg)
+void lib9p_process_message(uint8_t outchannel, buffer_t *msg)
 {
 	uint8_t reply[sizeof(Qid) + 4]; // 12 for Tversion, 17 for Topen
 	uint16_t oldtag; 	// Tflush
@@ -436,18 +434,18 @@ void lib9p_process_message(buffer_t *msg)
 			*((uint16_t *)(reply + 4)) = 6;
 			memcpy(reply + 6, "9P2000", 6);
 			
-			p9_send_reply(Rversion, tag, reply, 12);
+			p9_send_reply(outchannel, Rversion, tag, reply, 12);
 			return;
 		case Tflush:
 			oldtag = *((uint16_t *) (msg->p_out));
 			flushtag(oldtag);
-			p9_send_reply(Rflush, tag, 0, 0);
+			p9_send_reply(outchannel, Rflush, tag, 0, 0);
 			return;
 		case Tauth:
-			p9_send_error_reply(tag, "Auth not required.");
+			p9_send_error_reply(outchannel, tag, "Auth not required.");
 			return;
 		case Twstat:
-			p9_send_reply(Rwstat, tag, 0, 0); // fake response instead of error for v9fs
+			p9_send_reply(outchannel, Rwstat, tag, 0, 0); // fake response instead of error for v9fs
 			//send_error_reply(tag, "Unable to change file stat.");
 			return;
 	}
@@ -463,7 +461,7 @@ void lib9p_process_message(buffer_t *msg)
 		case Tattach:
 			if (fp)
 			{
-				p9_send_error_reply(tag, "fid in use");	
+				p9_send_error_reply(outchannel, tag, "fid in use");	
 			}
 			else
 			{	// other fields in this transaction
@@ -472,22 +470,22 @@ void lib9p_process_message(buffer_t *msg)
 				// aname[s] -- no other filesystems
 				
 				fp = fidcreate(fid, &qid_root);
-				p9_send_reply(Rattach, tag, (uint8_t *) &fp->qid, sizeof(Qid));
+				p9_send_reply(outchannel, Rattach, tag, (uint8_t *) &fp->qid, sizeof(Qid));
 			}
 			return;
 		case Tclunk:
 		case Tremove:
 			if (!fp)
 			{
-				p9_send_error_reply(tag, "no such fid");
+				p9_send_error_reply(outchannel, tag, "no such fid");
 			}
 			else
 			{
 				fiddelete(fp);
 				if (type == Tremove)
-					p9_send_error_reply(tag, "can't remove");
+					p9_send_error_reply(outchannel, tag, "can't remove");
 				else
-					p9_send_reply(Rclunk, tag, 0, 0);
+					p9_send_reply(outchannel, Rclunk, tag, 0, 0);
 			}
 			return;
 		case Twalk:
@@ -498,18 +496,18 @@ void lib9p_process_message(buffer_t *msg)
 	
 			if (fp->open)
 			{
-				p9_send_error_reply(tag, "Fid opened");
+				p9_send_error_reply(outchannel, tag, "Fid opened");
 				return;
 			}
 			if (fid  != *((uint32_t *)(msg->p_out)))
 			{
 				if ( findfid( *((uint32_t *)(msg->p_out)) ) )
 				{
-					p9_send_error_reply(tag, "New fid in use.");
+					p9_send_error_reply(outchannel, tag, "New fid in use.");
 					return;
 				}
 			}
-			fidwalk ( tag, 
+			fidwalk (outchannel, tag, 
 						fp, 
 						&fid, 
 						(uint32_t *)(msg->p_out), 
@@ -517,28 +515,28 @@ void lib9p_process_message(buffer_t *msg)
 						msg->p_out + 6);
 			return;
 		case Tstat:
-			fidstat(tag, fp);
+			fidstat(outchannel, tag, fp);
 			return;
 		case Tcreate:
-			p9_send_error_reply(tag, "Can't create");
+			p9_send_error_reply(outchannel, tag, "Can't create");
 			return;
 		case Topen:
 			if (!fidopen(fp, msg->p_out[0]))
-				p9_send_error_reply(tag, "Can't open");
+				p9_send_error_reply(outchannel, tag, "Can't open");
 			else
 			{
 				// send qid and iounit (maximum length to be sent before the request is segmented)
 				memcpy(reply, (uint8_t *)&fp->qid, sizeof(Qid));
 				*((uint32_t *)(reply + sizeof(Qid))) = IOUNIT;
-				p9_send_reply(Ropen, tag, reply, sizeof(Qid) + 4);
+				p9_send_reply(outchannel, Ropen, tag, reply, sizeof(Qid) + 4);
 			}
 			return;
 		case Tread:
 			if (*((uint32_t *)(msg->p_out + 8)) > IOUNIT)
 				*((uint32_t *)(msg->p_out + 8)) = IOUNIT;
 			
-			if (fidread(tag, fp, (uint64_t *)msg->p_out, (uint32_t *)(msg->p_out + 8)) < 0)
-				p9_send_error_reply(tag, "Can't read");
+			if (fidread(outchannel, tag, fp, (uint64_t *)msg->p_out, (uint32_t *)(msg->p_out + 8)) < 0)
+				p9_send_error_reply(outchannel, tag, "Can't read");
 			return;
 		case Twrite:
 			written = fidwrite(fp, 
@@ -546,9 +544,9 @@ void lib9p_process_message(buffer_t *msg)
 								(uint32_t *)(msg->p_out + 8), 
 								msg->p_out + 12);
 			if (written < 0)
-				p9_send_error_reply(tag, "can't write");
+				p9_send_error_reply(outchannel, tag, "can't write");
 			else {
-				p9_send_reply(Rwrite, tag, (uint8_t *)&written, 4);
+				p9_send_reply(outchannel, Rwrite, tag, (uint8_t *)&written, 4);
 			}
 			return;
 	}

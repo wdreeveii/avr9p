@@ -259,10 +259,9 @@ ISR(USART1_RX_vect)
 			/* 9p uses little endien byte order and so does avr, so just cast the array as int */
 			if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
 			{
-				
 				printf("P");
 				sei();
-				lib9p_process_message(&in_buf[1]);
+				lib9p_process_message(1, &in_buf[1]);
 				cli();
 				Buffer_Reset(&in_buf[1]);
 				printf("F\n");

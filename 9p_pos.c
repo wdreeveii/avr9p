@@ -8,13 +8,13 @@
 
 uint16_t pos_global = 0;
 
-int16_t pos_read(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t pos_read(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[6];
 	
 	*((uint16_t *)(reply+4)) = pos_global;
 	
-	p9_send_reply(Rread, tag, reply, 6);
+	p9_send_reply(oc, Rread, tag, reply, 6);
 	return 0;
 }
 

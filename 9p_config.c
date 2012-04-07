@@ -61,7 +61,7 @@ int8_t build_baud(uint8_t port, uint8_t *reply, uint8_t size)
 	replyptr += outlength;
 	return replyptr - reply;
 }
-int16_t read_usart0_baud(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t read_usart0_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[20];
 	uint8_t length = 4;
@@ -71,10 +71,10 @@ int16_t read_usart0_baud(const struct DirectoryEntry *dp, uint16_t tag, uint64_t
 	length = build_baud(0, reply, 20);
 	
 done:
-	p9_send_reply(Rread, tag, reply, length);
+	p9_send_reply(oc, Rread, tag, reply, length);
 	return 0;
 }
-int16_t read_usart1_baud(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t read_usart1_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[20];
 	uint8_t length = 4;
@@ -84,13 +84,13 @@ int16_t read_usart1_baud(const struct DirectoryEntry *dp, uint16_t tag, uint64_t
 	length = build_baud(1, reply, 20);
 	
 done:
-	p9_send_reply(Rread, tag, reply, length);
+	p9_send_reply(oc, Rread, tag, reply, length);
 	return 0;
 }
 
 #define MUCRONLISTLINESIZE 37
 const char mucronlistheader[] = "Index	Start Time	On Time	Off Time Port\n";
-int16_t mucron_list_events(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t mucron_list_events(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[*count + 4];
 	uint8_t *replyptr = reply + 4;
@@ -131,7 +131,7 @@ int16_t mucron_list_events(const struct DirectoryEntry *dp, uint16_t tag, uint64
 		}
 	}
 	*((uint32_t *)reply) = replyptr - reply - 4;
-	p9_send_reply(Rread,tag,reply,replyptr - reply);
+	p9_send_reply(oc, Rread,tag,reply,replyptr - reply);
 	return 0;
 }
 
@@ -179,7 +179,7 @@ int16_t rtc_write_clock(const struct DirectoryEntry *dp, uint64_t *offset, uint3
 	return *count;
 }
 
-int16_t rtc_read_clock(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t rtc_read_clock(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[20];
 	uint8_t len = 0;
@@ -190,7 +190,7 @@ int16_t rtc_read_clock(const struct DirectoryEntry *dp, uint16_t tag, uint64_t *
 	*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "%lu\n", time());
 	
 done:
-	p9_send_reply(Rread, tag, reply, len + 4);
+	p9_send_reply(oc, Rread, tag, reply, len + 4);
 	return 0;
 }
 

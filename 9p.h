@@ -117,18 +117,18 @@ typedef struct DirectoryEntry {
 	char	*name;
 	Qid		qid;
 	const	struct DirectoryEntry *sub;
-	int16_t (*read)(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
+	int16_t (*read)(uint8_t outchannel, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
 	int16_t (*write)(const struct DirectoryEntry *dp, uint64_t * offset, uint32_t * count, uint8_t *buf);
 } DirectoryEntry;
 
-void p9_send_reply(uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
-void p9_send_error_reply(uint16_t tag, char *msg);
+void p9_send_reply(uint8_t outchannel, uint8_t type, uint16_t tag, uint8_t *msg, uint16_t len);
+void p9_send_error_reply(uint8_t outchannel, uint16_t tag, char *msg);
 
-void lib9p_process_message(buffer_t *msg);
+void lib9p_process_message(uint8_t outchannel, buffer_t *msg);
 uint8_t p9_register_de(DirectoryEntry * entry);
 void p9_init();
 
 int16_t p9_nowrite(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *data);
-int16_t p9_noread(const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
+int16_t p9_noread(uint8_t outchannel, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count);
 
 #endif

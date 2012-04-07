@@ -3,7 +3,7 @@
  * Dedicated to my long friend Matt Brown.
  * AUTHOR: Whitham D. Reeve II
  * Heavily copied from Nigel Roles of Vita Nuova styx.c styx on a brick project.
- * Updated to 9p2000 and converted to skelleton for others to extend
+ * Updated to 9p2000 and converted to skeleton for others to extend
  * 
  * BEWARE: This code makes heavy use of typecasts that are not safe on all architectures.
  * 			9p is a little endian formatted protocol, and avr-gcc produces little endian code.

@@ -17,8 +17,10 @@
 
 struct s_config {
 	uint16_t			S1Baud;
+	uint8_t				S1Type;
 	uint16_t			S2Baud;
-	int8_t			SerialNumber[SERIALNUM_LENGTH];
+	uint8_t				S2Type;
+	int8_t				SerialNumber[SERIALNUM_LENGTH];
 	uint8_t 			NumEvents;
 	struct s_mucron	EventList[MUCRON_EVENTLIST_SIZE];
 };
@@ -70,6 +72,29 @@ struct s_mucron ramEventList[MUCRON_EVENTLIST_SIZE];
 void config_Init()
 {
 	EEPROM_read_page(offsetof(struct s_config, EventList), (void*)ramEventList, sizeof(struct s_mucron) * MUCRON_EVENTLIST_SIZE);
+}
+
+uint8_t config_get_protocol_type(uint8_t port)
+{
+	switch(port)
+	{
+		case 0: return EEPROM_read(offsetof(struct s_config, S1Type));
+		case 1: return EEPROM_read(offsetof(struct s_config, S2Type));
+	}
+	return 0;
+}
+
+void config_set_protocol_type(uint8_t port, uint8_t type)
+{
+	switch(port)
+	{
+		case 0:
+			EEPROM_write(offsetof(struct s_config, S1Type), type);
+			break;
+		case 1:
+			EEPROM_write(offsetof(struct s_config, S2Type), type);
+			break;	
+	}
 }
 
 uint16 config_get_baud(uint8 port)
@@ -134,7 +159,6 @@ void mucron_delete_event(uint16_t event_index)
 	EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index,
 						(void*)(ramEventList+event_index),
 						sizeof(struct s_mucron));
-	//DSEND(0, "Delete Event Finished\n");
 }
 
 void mucron_save_event(struct s_mucron *timerblock)
@@ -142,7 +166,6 @@ void mucron_save_event(struct s_mucron *timerblock)
 	uint16_t event_index = 0;
 	struct s_mucron * event_ptr;
 
-	//blank_eventlist_eeprom();
 	for (event_ptr = ramEventList; event_index < MUCRON_EVENTLIST_SIZE; event_ptr++, event_index++)
 	{
 		if (!event_ptr->start_time && !event_ptr->on_len)

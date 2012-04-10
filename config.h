@@ -27,8 +27,12 @@ struct s_mucron {
 
 
 void config_Init();
+uint8_t config_get_protocol_type(uint8_t port);
+void config_set_protocol_type(uint8_t port, uint8_t type);
+
 uint16 config_get_baud(uint8 port);
 void config_set_baud(uint8 port, uint16 baud);
+void blank_eventlist_eeprom();
 
 void mucron_save_event(struct s_mucron *timerblock);
 void mucron_delete_event(uint16_t event_index);

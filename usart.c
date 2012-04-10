@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+void proto9p (uint8_t port, buffer_t * buf);
 /* lets take care of the glue code between avrlibc and my USART driver */
 
 static int putchar_for_printf(char c, FILE *stream)
@@ -102,6 +103,21 @@ void USART_Init2(uint16 baud)
 	UCSR1C = (3<<UCSZ10);
 }
 
+conn_handler usart0_rx_handler = NULL;
+conn_handler usart1_rx_handler = NULL;
+
+conn_handler usart_get_conn_handler(uint8_t port)
+{
+	uint8_t protocol = config_get_protocol_type(port);
+	switch(protocol)
+	{
+		case REPL: return NULL;
+		case PLAN9FS: return &proto9p;
+		case DATASTREAM: return NULL;
+		default: return NULL;
+	}
+	return NULL;
+}
 /*
  *  USART_Init : Initialize USART
  *
@@ -113,10 +129,11 @@ void USART_Init(void)
 	// default to 42 which is 57600 baud at 20mhz
 	uint16 baud = 42;
 	uint16 config_baud = 0;
-	
+	conn_handler ch = NULL;
 	// The following lines are helpful when creating a config eeprom from scratch
 	//config_set_baud(0, 42);
 	//config_set_baud(1, 42);
+	usart0_rx_handler = usart_get_conn_handler(0);
 	if ((config_baud = config_get_baud(0))) baud = config_baud;
 	USART_Init1(baud);
 	
@@ -124,6 +141,10 @@ void USART_Init(void)
 	stdout = &standard_output;
 	
 	baud = 42;
+	// prefer 9p for this port if no other handler is set.
+	usart1_rx_handler = &proto9p;
+	if ((ch = usart_get_conn_handler(1))) usart1_rx_handler = ch;
+	
 	if ((config_baud = config_get_baud(1))) baud = config_baud;
 	USART_Init2(baud);
 }
@@ -217,27 +238,18 @@ ISR(USART0_RX_vect)
 		/* If frame error or parity error UDR is Garbage */
 		garbage = UDR0;
 	else
-		/* Else, send received char into input buffer */
-		Buffer_Push(&in_buf[0], UDR0);
-	
-}
-
-#define TIMEOUT_SECS 5
-int8_t usart1_timeout_slot = -1;
-void usart1_timeout()
-{
-	printf("Resetting the buffer\n");
-	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
-		Buffer_Reset(&in_buf[1]);
-		usart1_timeout_slot = -1;
+		/* Else, send received char into input buffer */
+		garbage = UDR0;
+		Buffer_Push(&in_buf[0], garbage);
+		if (usart0_rx_handler != NULL) (*usart0_rx_handler)(0, &in_buf[0]);
 	}
+	
 }
 
 ISR(USART1_RX_vect)
 {
 	char garbage;
-
 	if((UCSR1A & (1<<FE1))||(UCSR1A & (1<<UPE1)))
 		/* If frame error or parity error UDR is Garbage */
 		garbage = UDR1;
@@ -246,27 +258,53 @@ ISR(USART1_RX_vect)
 		/* Else, send received char into input buffer */
 		garbage = UDR1;
 		Buffer_Push(&in_buf[1], garbage);
-		
-		if (usart1_timeout_slot < 0)
-			usart1_timeout_slot = set_timer(time() + TIMEOUT_SECS, &usart1_timeout);
-		else
-			reset_timer(time() + TIMEOUT_SECS, &usart1_timeout, usart1_timeout_slot);
-		
-		/* do we know the packet size? */
-		if (in_buf[1].count > 4)
-		{
-			/* have all the bytes of the packet been received */
-			/* 9p uses little endien byte order and so does avr, so just cast the array as int */
-			if (*((uint32_t *)in_buf[1].p_out) == in_buf[1].count)
-			{
-				printf("P");
-				sei();
-				lib9p_process_message(1, &in_buf[1]);
-				cli();
-				Buffer_Reset(&in_buf[1]);
-				printf("F\n");
-			}
-		}
+		if (usart1_rx_handler != NULL) (*usart1_rx_handler)(1, &in_buf[1]);
 	}
 
+}
+
+#define TIMEOUT_SECS 5
+int8_t usart_timeout_slot[2] = {-1,-1};
+
+void usart0_timeout()
+{
+	printf("Resetting the buffer\n");
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		Buffer_Reset(&in_buf[0]);
+		usart_timeout_slot[0] = -1;
+	}
+}
+void usart1_timeout()
+{
+	printf("Resetting the buffer\n");
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		Buffer_Reset(&in_buf[1]);
+		usart_timeout_slot[1] = -1;
+	}
+}
+
+call_back cbarray[2] = {&usart0_timeout, &usart1_timeout};
+
+void proto9p (uint8_t port, buffer_t * buf)
+{
+	if (usart_timeout_slot[port] < 0)
+		usart_timeout_slot[port] = set_timer(time() + TIMEOUT_SECS, cbarray[port]);
+	else
+		reset_timer(time() + TIMEOUT_SECS, cbarray[port], usart_timeout_slot[port]);
+	
+	/* do we know the packet size? */
+	if (buf->count > 4)
+	{
+		/* have all the bytes of the packet been received */
+		/* 9p uses little endien byte order and so does avr, so just cast the array as int */
+		if (*((uint32_t *)(buf->p_out)) == buf->count)
+		{
+			sei();
+			lib9p_process_message(port, buf);
+			cli();
+			Buffer_Reset(buf);
+		}
+	}
 }

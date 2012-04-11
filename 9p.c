@@ -25,17 +25,12 @@
 #include "usart.h"
 #include "9p_config.h"
 #include "9p_pos.h"
-#include "9p_motor.h"
+#include "9p_pwm.h"
 
-void flushtag(uint16_t oldtag)
-{
-	// no pending requests with a stored tag that need to be removed.
-	
-}
 #define QID_ROOT 0
 #define QID_POS 1
 #define QID_CONFIG 2
-#define QID_MOTOR 3
+#define QID_PWM 3
 
 #define QID_MAP_MAX (sizeof(qid_map) / sizeof(qid_map[0]))
 
@@ -59,7 +54,7 @@ DirectoryEntry dir_root[] = {
 	{ "..",     {QTDIR, 0, QID_ROOT}, dir_slash },
 	{ "pos",    {QTDIR, 0, QID_POS}, 0 },
 	{ "config", {QTDIR, 0, QID_CONFIG}, 0 },
-	{ "motor",  {QTDIR, 0, QID_MOTOR}, 0 },
+	{ "pwm",    {QTDIR, 0, QID_PWM}, 0 },
 	{ 0 }
 };
 
@@ -73,7 +68,7 @@ DirectoryEntry *qid_map[QID_MAP_SIZE] = {
 	/* QID_ROOT */      &dir_slash[0],
 	/* QID_POS */       &dir_root[1],
 	/* QID_CONFIG */    &dir_root[2],
-	/* QID_MOTOR */     &dir_root[3],
+	/* QID_PWM */       &dir_root[3],
 };
 
 uint8_t p9_register_de(DirectoryEntry * entry)
@@ -94,7 +89,7 @@ void p9_init()
 {
 	dir_root[1].sub = p9_build_pos_dir(QID_ROOT, dir_root);
 	dir_root[2].sub = p9_build_config_dir(QID_ROOT, dir_root);
-	dir_root[3].sub = p9_build_motor_dir(QID_ROOT, dir_root);
+	dir_root[3].sub = p9_build_pwm_dir(QID_ROOT, dir_root);
 }
 
 typedef struct Fid {
@@ -105,6 +100,12 @@ typedef struct Fid {
 } Fid;
 
 Fid *fids;
+
+void flushtag(uint16_t oldtag)
+{
+	// no pending requests with a stored tag that need to be removed.
+	
+}
 
 Fid * findfid(uint32_t fid)
 {

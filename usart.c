@@ -44,7 +44,7 @@ buffer_t in_buf[2], out_buf[2];
  *
  *  Input : baudrate
  */
-void USART_Init1(uint16 baud)
+void USART_Init0(uint16 baud)
 {
 	/* Wait latest receive character was pull from UDR */
 	while(UCSR0A & (1<<RXC0));
@@ -74,7 +74,7 @@ void USART_Init1(uint16 baud)
 	
 }
 
-void USART_Init2(uint16 baud)
+void USART_Init1(uint16 baud)
 {
 	/* Wait latest receive character was pull from UDR */
 	while(UCSR1A & (1<<RXC1));
@@ -135,7 +135,7 @@ void USART_Init(void)
 	//config_set_baud(1, 42);
 	usart0_rx_handler = usart_get_conn_handler(0);
 	if ((config_baud = config_get_baud(0))) baud = config_baud;
-	USART_Init1(baud);
+	USART_Init0(baud);
 	
 	// setup stdout so printf works
 	stdout = &standard_output;
@@ -146,7 +146,7 @@ void USART_Init(void)
 	if ((ch = usart_get_conn_handler(1))) usart1_rx_handler = ch;
 	
 	if ((config_baud = config_get_baud(1))) baud = config_baud;
-	USART_Init2(baud);
+	USART_Init1(baud);
 }
 
 /*

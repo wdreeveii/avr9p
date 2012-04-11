@@ -61,31 +61,80 @@ int8_t build_baud(uint8_t port, uint8_t *reply, uint8_t size)
 	replyptr += outlength;
 	return replyptr - reply;
 }
-int16_t read_usart0_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t usart0_read_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[20];
 	uint8_t length = 4;
 	
-	if (*(offset) != 0)
-		goto done;
-	length = build_baud(0, reply, 20);
+	if (*(offset) == 0)
+		length = build_baud(0, reply, 20);
 	
-done:
 	p9_send_reply(oc, Rread, tag, reply, length);
 	return 0;
 }
-int16_t read_usart1_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+int16_t usart1_read_baud(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
 {
 	uint8_t reply[20];
 	uint8_t length = 4;
 	
-	if (*(offset) != 0)
-		goto done;
-	length = build_baud(1, reply, 20);
-	
-done:
+	if (*(offset) == 0)
+		length = build_baud(1, reply, 20);
+
 	p9_send_reply(oc, Rread, tag, reply, length);
 	return 0;
+}
+int16_t encode_baud(uint32_t stdbaud)
+{
+	switch(stdbaud)
+	{
+		case 2400: return 1041;
+		case 4800: return 520;
+		case 9600: return 259;
+		case 14400: return 173;
+		case 19200: return 129;
+		case 28800: return 86;
+		case 38400: return 64;
+		case 57600: return 42;
+		case 76800: return 32;
+		case 115200: return 21;
+		case 230400: return 10;
+		case 250000: return 9;
+		case 500000: return 4;
+		default: return -1;
+	}
+	return -1;
+}
+int16_t usart0_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
+{
+	uint8_t datacpy[*count + 1];
+	datacpy[*count] = 0;
+	uint32_t newbaud;
+	int16_t avrbaud;
+	memcpy(datacpy, indata, *count);
+	if (sscanf((char *)datacpy, "%lu", &newbaud) == 1)
+	{
+		avrbaud = encode_baud(newbaud);
+		if (avrbaud >= 0)
+			USART_Init0(avrbaud);
+		else return -1;
+	}
+	return *count;
+}
+int16_t usart1_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
+{
+	uint8_t datacpy[*count + 1];
+	datacpy[*count] = 0;
+	uint32_t newbaud;
+	int16_t avrbaud;
+	memcpy(datacpy, indata, *count);
+	if (sscanf((char *)datacpy, "%lu", &newbaud) == 1)
+	{
+		avrbaud = encode_baud(newbaud);
+		if (avrbaud >= 0)
+			USART_Init1(avrbaud);
+		else return -1;
+	}
+	return *count;
 }
 
 #define MUCRONLISTLINESIZE 37
@@ -94,7 +143,6 @@ int16_t mucron_list_events(uint8_t oc, const struct DirectoryEntry *dp, uint16_t
 {
 	uint8_t reply[*count + 4];
 	uint8_t *replyptr = reply + 4;
-	//char line[MUCRONLISTLINESIZE+1];
 	char line[35];
 	uint8_t statsize = 0;
 	uint8_t copylen;
@@ -184,12 +232,9 @@ int16_t rtc_read_clock(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag
 	uint8_t reply[20];
 	uint8_t len = 0;
 	
-	if (*(offset) != 0)
-		goto done;
-	
-	*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "%lu\n", time());
-	
-done:
+	if (*(offset) == 0)
+		*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "%lu\n", time());
+
 	p9_send_reply(oc, Rread, tag, reply, len + 4);
 	return 0;
 }
@@ -221,8 +266,8 @@ DirectoryEntry * p9_build_config_dir(uint8_t parent_qid, DirectoryEntry * parent
 		return 0;
 	}
 	*(dir_config) = (DirectoryEntry){"..", {QTDIR, 0, parent_qid}, parent};
-	*(dir_config + 1) = (DirectoryEntry){"usart0_baud", {QTFILE, 0, p9_register_de(dir_config+1)}, 0, read_usart0_baud, p9_nowrite};
-	*(dir_config + 2) = (DirectoryEntry){"usart1_baud", {QTFILE, 0, p9_register_de(dir_config+2)}, 0, read_usart1_baud, p9_nowrite};
+	*(dir_config + 1) = (DirectoryEntry){"usart0_baud", {QTFILE, 0, p9_register_de(dir_config+1)}, 0, usart0_read_baud, usart0_write_baud};
+	*(dir_config + 2) = (DirectoryEntry){"usart1_baud", {QTFILE, 0, p9_register_de(dir_config+2)}, 0, usart1_read_baud, usart1_write_baud};
 	tmpde = p9_register_de(dir_config+3);
 	*(dir_config + 3) = (DirectoryEntry){"timer", {QTDIR, 0, tmpde}, p9_build_config_timer(tmpde, dir_config)};
 	*(dir_config + 4) = (DirectoryEntry){"clock", {QTFILE, 0, p9_register_de(dir_config + 4)}, 0, rtc_read_clock, rtc_write_clock};

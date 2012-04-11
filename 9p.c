@@ -545,7 +545,7 @@ void lib9p_process_message(uint8_t outchannel, buffer_t *msg)
 								(uint32_t *)(msg->p_out + 8), 
 								msg->p_out + 12);
 			if (written < 0)
-				p9_send_error_reply(outchannel, tag, "can't write");
+				p9_send_error_reply(outchannel, tag, "Invalid argument");
 			else {
 				p9_send_reply(outchannel, Rwrite, tag, (uint8_t *)&written, 4);
 			}

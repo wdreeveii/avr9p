@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -10,17 +11,38 @@ int main(int argc, char *argv[])
 {
 	int fd = -1;
 	int err = 0;
+	uint32_t baud;
 	char options[200];
-	char *args[] = {"/bin/mount", "-v", "-t", "9p", "-o", options, argv[1], argv[2], (char*)NULL};
+	char *args[] = {"/bin/mount", "-v", "-t", "9p", "-o", options, argv[1], argv[3], (char*)NULL};
 	
 	speed_t devicespeed = B57600;
 	struct termios serialmode;
 	struct termios confirmation;
 	
-	if (argc < 3)
+	if (argc < 4)
 	{
-		printf("mnt device mountpoint\n");
+		printf("mnt <device> <speed> <mountpoint>\n");
 		return;
+	}
+	if (sscanf(argv[2], "%u", &baud) != 1)
+	{
+		printf("Incorrect baud setting please try again\n");
+		return;
+	}
+	switch(baud)
+	{
+		case 2400: devicespeed = B2400; break;
+		case 4800: devicespeed = B4800; break;
+		case 9600: devicespeed = B9600; break;
+		case 19200: devicespeed = B19200; break;
+		case 38400: devicespeed = B38400; break;
+		case 57600: devicespeed = B57600; break;
+		case 115200: devicespeed = B115200; break;
+		case 230400: devicespeed = B230400; break;
+		case 500000: devicespeed = B500000; break;
+		default: printf("Incorrect baud setting please try again\n");
+				return;
+		
 	}
 	// open
 	fd = open(argv[1], O_RDWR);

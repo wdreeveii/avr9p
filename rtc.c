@@ -65,17 +65,17 @@ struct m41DateBlock {
  * Takes one argument the year to count leap years up to.
  * Returns the number of leap years that have happened before the specified date
  */
-unsigned long leapYearsBefore (unsigned long year)
+uint32_t leapYearsBefore (uint32_t year)
 {
 	year--;
-	return (year/4) - (year/100) + (year/400);
+	return (year/(4ul)) - (year/(100ul)) + (year/(400ul));
 }
 
 /* Test whether the provided year is a leap year
  * Takes one argument the year to be tested
  * returns true if the specified year is a leap year, other wise false.
  */
-int isLeapYear(unsigned long year)
+char isLeapYear(uint32_t year)
 {
 	if (year % 400 == 0)
 		return 1;
@@ -99,15 +99,15 @@ int set_time(time_t timestamp)
 	uint8_t month_lens[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
 	uint8_t month_index = 0;
 	
-	unsigned long total_days = timestamp/86400ul;
-	unsigned long rem_secs = timestamp % 86400ul;
+	uint32_t total_days = timestamp/(86400ul);
+	uint32_t rem_secs = timestamp % (86400ul);
 	
-	unsigned long guess_leap_years = leapYearsBefore(1970ul + (total_days/365ul)) - leapYearsBefore(1970ul);
-	unsigned long total_years = 1970ul + ((total_days - guess_leap_years)/365ul);
-	unsigned long rem_days = ((total_days - guess_leap_years) % 365ul);
+	uint32_t guess_leap_years = leapYearsBefore(1970ul + (total_days/(365ul))) - leapYearsBefore(1970ul);
+	uint32_t total_years = (1970ul) + ((total_days - guess_leap_years)/(365ul));
+	uint32_t rem_days = ((total_days - guess_leap_years) % 365ul);
 	
-	dateblock.tYear = (total_years % 100) / 10ul;
-	dateblock.Year = (total_years % 100) % 10ul;
+	dateblock.tYear = (total_years % (100ul)) / 10ul;
+	dateblock.Year = (total_years % (100ul)) % 10ul;
 
 	if (isLeapYear(total_years))
 		month_lens[1] = 29;
@@ -155,21 +155,21 @@ time_t get_time()
 	rv = m41t83_read_bytes(0x01, 7, (void *)(&dateblock));
 	if (rv == -1) printf("RTC time READ ERROR\n");
 	
-	unsigned long year = 2000 + dateblock.Year + (dateblock.tYear * 10);
-	unsigned long year_days = ((year - 1970) * 365) + (leapYearsBefore(year) - leapYearsBefore(1970));
+	uint32_t year = 2000 + dateblock.Year + (dateblock.tYear * 10);
+	uint32_t year_days = ((year - (1970ul)) * (365ul)) + (leapYearsBefore(year) - leapYearsBefore(1970ul));
 	
-	uint8_t month = dateblock.Month + (dateblock.tMonth * 10);
+	uint8_t month = dateblock.Month + (dateblock.tMonth * (10ul));
 	if (isLeapYear(year))
 		month_lens[1] = 29;
 	
 	uint16_t month_days = 0;
 	for (rv = 1; rv < month; rv++)
 		month_days += month_lens[rv - 1];
-	unsigned long total_days = year_days + month_days + dateblock.DayOfMonth + (dateblock.tDayOfMonth * 10);
-	unsigned long total_secs = (total_days * 86400) + 
-						 ((dateblock.hours + (dateblock.thours * 10)) * 3600) + 
-						 ((dateblock.mins + (dateblock.tmins * 10)) * 60) +
-						 (dateblock.secs + (dateblock.tsecs * 10));
+	uint32_t total_days = year_days + month_days + dateblock.DayOfMonth + (dateblock.tDayOfMonth * (10ul));
+	uint32_t total_secs = (total_days * (86400ul)) + 
+						 ((dateblock.hours + (dateblock.thours * (10ul))) * (3600ul)) + 
+						 ((dateblock.mins + (dateblock.tmins * (10ul))) * (60ul)) +
+						 (dateblock.secs + (dateblock.tsecs * (10ul)));
 	
 	return total_secs;
 }

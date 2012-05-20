@@ -63,7 +63,7 @@ DirectoryEntry dir_slash[] = {
 	{ 0 }
 };
 
-#define QID_MAP_SIZE 20
+#define QID_MAP_SIZE 30
 DirectoryEntry *qid_map[QID_MAP_SIZE] = {
 	/* QID_ROOT */      &dir_slash[0],
 	/* QID_POS */       &dir_root[1],

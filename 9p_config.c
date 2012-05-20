@@ -2,10 +2,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <util/atomic.h>
+
 #include "config.h"
 #include "9p.h"
 #include "usart.h"
 #include "rtc.h"
+#include "softtimer.h"
 
 int8_t build_baud(uint8_t port, uint8_t *reply, uint8_t size)
 {
@@ -104,6 +107,32 @@ int16_t encode_baud(uint32_t stdbaud)
 	}
 	return -1;
 }
+int16_t usart0_baud = -1;
+void usart0_do_write()
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		if (usart0_baud >= 0)
+		{
+			USART_Init0(usart0_baud);
+			usart0_baud = -1;
+		}
+	}
+}
+
+int16_t usart1_baud = -1;
+void usart1_do_write()
+{
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		if (usart1_baud >= 0)
+		{
+			USART_Init1(usart1_baud);
+			usart1_baud = -1;
+		}
+	}
+}
+
 int16_t usart0_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
 {
 	uint8_t datacpy[*count + 1];
@@ -115,9 +144,17 @@ int16_t usart0_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uin
 	{
 		avrbaud = encode_baud(newbaud);
 		if (avrbaud >= 0)
-			USART_Init0(avrbaud);
+		{
+			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+			{
+				usart0_baud = avrbaud;
+				set_timer(time() + 1, &usart0_do_write);
+			}
+			config_set_baud(0, avrbaud);
+		}
 		else return -1;
 	}
+	else return -1;
 	return *count;
 }
 int16_t usart1_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
@@ -131,9 +168,17 @@ int16_t usart1_write_baud(const struct DirectoryEntry *dp, uint64_t *offset, uin
 	{
 		avrbaud = encode_baud(newbaud);
 		if (avrbaud >= 0)
-			USART_Init1(avrbaud);
+		{
+			ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+			{
+				usart0_baud = avrbaud;
+				set_timer(time() + 1, &usart1_do_write);
+			}
+			config_set_baud(1, avrbaud);
+		}
 		else return -1;
 	}
+	else return -1;
 	return *count;
 }
 
@@ -198,7 +243,7 @@ int16_t mucron_build_save_event(const struct DirectoryEntry *dp, uint64_t *offse
 		data.port = portcpy;
 		mucron_save_event(&data);
 	}
-
+	else return -1;
 	return *count;
 }
 int16_t mucron_build_delete_event(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
@@ -211,6 +256,7 @@ int16_t mucron_build_delete_event(const struct DirectoryEntry *dp, uint64_t *off
 	{
 		mucron_delete_event(index);
 	}
+	else return -1;
 	return *count;
 }
 
@@ -224,6 +270,7 @@ int16_t rtc_write_clock(const struct DirectoryEntry *dp, uint64_t *offset, uint3
 	{
 		set_time(newtime);
 	}
+	else return -1;
 	return *count;
 }
 

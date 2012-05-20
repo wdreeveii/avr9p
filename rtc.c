@@ -202,11 +202,11 @@ void RTC_Init(void)
 	
 	// configure pin change interrupt for the square wave output from the rtc
 	// enable PCIE2
-	PCICR = (1 << 1);
-	PCMSK1 = (1 << 2);
+	PCICR = (1 << 2);
+	PCMSK2 = (1 << 4);
 	
-	PORTB &= ~(1<<2);
-	DDRB &= ~(1<<2);
+	PORTC &= ~(1<<4);
+	DDRC &= ~(1<<4);
 	
 	if(rtc_check_halt())
 	{
@@ -242,13 +242,13 @@ void print_time(void)
  * Execute everything that needs to happen once a second
  * Author: Whitham D. Reeve II
  */
-ISR(PCINT1_vect, ISR_NOBLOCK)
+ISR(PCINT2_vect, ISR_NOBLOCK)
 {
 	time_t copy;
 	// issue print request
 	// The square wave is like any square wave, 
 	// and thus it changes value twice in 1 period.
-	if (PINB & (1<<2))
+	if (PINC & (1<<4))
 	{
 		copy = get_time();
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)

@@ -154,6 +154,9 @@ void mucron_delete_event(uint16_t event_index)
 {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 	{
+		// turn off the device when the event is deleted so the device is left on with no way to turn it off
+		iocontrol((ramEventList + event_index)->port, 0);
+		
 		*(ramEventList + event_index) = (struct s_mucron){0};
 	}
 	EEPROM_write_page(offsetof(struct s_config, EventList) + sizeof(struct s_mucron) * event_index,

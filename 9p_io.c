@@ -14,9 +14,9 @@ int16_t setio_write(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t 
 {
 	uint8_t datacpy[*count + 1];
 	datacpy[*count] = 0;
-	uint8_t port, state;
+	uint16_t port, state;
 	memcpy(datacpy, indata, *count);
-	if (sscanf((char *)datacpy, "%c %c", &port, &state) == 2)
+	if (sscanf((char *)datacpy, "%u %u", &port, &state) == 2)
 	{
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
@@ -30,9 +30,9 @@ int16_t flipio_write(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t
 {
 	uint8_t datacpy[*count + 1];
 	datacpy[*count] = 0;
-	uint8_t port;
+	uint16_t port;
 	memcpy(datacpy, indata, *count);
-	if (sscanf((char *)datacpy, "%c", &port) == 2)
+	if (sscanf((char *)datacpy, "%u", &port) == 1)
 	{
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
@@ -54,7 +54,7 @@ DirectoryEntry * p9_build_io_dir(uint8_t parent_qid_index, DirectoryEntry * pare
 	
 	*dir_io = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
 	*(dir_io + 1) = (DirectoryEntry){"setio", {QTFILE, 0, p9_register_de(dir_io+1)}, 0, p9_noread, setio_write};
-	*(dir_io + 2) = (DirectoryEntry){"flipio", {QTFILE, 0, p9_register_de(dir_io+1)},0, p9_noread, flipio_write};
+	*(dir_io + 2) = (DirectoryEntry){"flipio", {QTFILE, 0, p9_register_de(dir_io+2)},0, p9_noread, flipio_write};
 	*(dir_io + 3) = (DirectoryEntry){0};
 	
 	return dir_io;

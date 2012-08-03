@@ -16,12 +16,12 @@ typedef uint32_t uint32;
 #define TRUE 1
 #define FALSE 0
 
-#define MUCRON_EVENTLIST_SIZE		16
+#define MUCRON_EVENTLIST_SIZE		8
 
 struct s_mucron {
 	time_t		start_time;
-	uint16_t	on_len;
-	uint16_t	off_len;
+	uint32_t	on_len;
+	uint32_t	off_len;
 	uint8_t		port;
 };
 
@@ -38,5 +38,7 @@ void mucron_save_event(struct s_mucron *timerblock);
 void mucron_delete_event(uint16_t event_index);
 void mucron_tick();
 struct s_mucron * mucron_get_eventlist();
+
+uint8_t timer_paused;
 
 #endif

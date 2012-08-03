@@ -8,6 +8,7 @@
 typedef void (*call_back)();
 
 int8_t set_timer(time_t trigger, call_back cb);
+void update_timers(int32_t deltat);
 void reset_timer(time_t trigger, call_back cb, uint8_t slot);
 void soft_timer_tick();
 void soft_timer_init();

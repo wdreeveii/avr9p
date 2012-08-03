@@ -21,6 +21,9 @@
 static void hardware_init()
 {	
 	PORTA = 0;
+	PORTC = 0;
+	PORTD = 0;
+	ioinit();
 	soft_timer_init();
 	config_Init();
 	USART_Init();
@@ -61,6 +64,6 @@ int main(void)
 
 ISR(BADISR_vect)
 {
-   iocontrol(2,1);
+   DDRC |= (1U<<5);
 }
 

@@ -182,6 +182,7 @@ void mucron_save_event(struct s_mucron *timerblock)
 		}
 	}
 }
+uint8_t timer_paused;
 
 void mucron_tick()
 {
@@ -189,18 +190,23 @@ void mucron_tick()
 	struct s_mucron * event_ptr;
 	time_t timestamp = time();
 	time_t modsecs;
+	uint8_t paused_copy;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		paused_copy = timer_paused;
+	}
 	for (; event_index < MUCRON_EVENTLIST_SIZE; event_index++)
 	{
 		event_ptr = ramEventList + event_index;
-		if (event_ptr->start_time && event_ptr->on_len)
+		if (event_ptr->start_time && event_ptr->on_len && !paused_copy)
 		{
 			modsecs = (timestamp - event_ptr->start_time) % (event_ptr->on_len + event_ptr->off_len);
-			if ( modsecs == 0)
+			if ( modsecs >= 0 && modsecs < event_ptr->on_len)
 			{
 				// on
 				iocontrol(event_ptr->port, 1);
 			}
-			else if (modsecs == event_ptr->on_len)
+			else if (modsecs >= event_ptr->on_len)
 			{
 				// off
 				iocontrol(event_ptr->port, 0);

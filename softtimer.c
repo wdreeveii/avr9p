@@ -24,6 +24,21 @@ void soft_timer_init()
 	memset(st_event_list_global, 0, MAXEVENTS*sizeof(cb_data));
 }
 
+void update_timers(int32_t deltat)
+{
+	uint8_t index;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+	{
+		for (index = 0; index < MAXEVENTS; index++)
+		{
+			if (st_event_list_global[index].trigger)
+			{
+				st_event_list_global[index].trigger += deltat;
+			}
+		}
+	}
+}
+
 int8_t set_timer(time_t trigger, call_back cb)
 {
 	uint8_t index;

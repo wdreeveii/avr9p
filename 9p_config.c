@@ -210,7 +210,7 @@ int16_t mucron_list_events(uint8_t oc, const struct DirectoryEntry *dp, uint16_t
 			break;
 		if (event_ptr->start_time && event_ptr->on_len)
 		{
-			copylen = sprintf(line, "%u	%lu	%u	%u	 %u\n", event_index, event_ptr->start_time,event_ptr->on_len,event_ptr->off_len,event_ptr->port);
+			copylen = sprintf(line, "%u	%lu	%lu	%lu	 %u\n", event_index, event_ptr->start_time,event_ptr->on_len,event_ptr->off_len,event_ptr->port);
 			if (*offset > statsize + copylen)
 			{
 				statsize += copylen;
@@ -238,7 +238,7 @@ int16_t mucron_build_save_event(const struct DirectoryEntry *dp, uint64_t *offse
 
 	memcpy(datacpy, indata, *count);
 	
-	if (sscanf((char *)datacpy, "%lu %u %u %u",(uint32_t *) &data.start_time, &data.on_len, &data.off_len, &portcpy) == 4)
+	if (sscanf((char *)datacpy, "%lu %lu %lu %u",(uint32_t *) &data.start_time, &data.on_len, &data.off_len, &portcpy) == 4)
 	{
 		data.port = portcpy;
 		mucron_save_event(&data);
@@ -260,14 +260,58 @@ int16_t mucron_build_delete_event(const struct DirectoryEntry *dp, uint64_t *off
 	return *count;
 }
 
+extern uint8_t timer_paused;
+
+int16_t mucron_is_paused(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+{
+	uint8_t reply[20];
+	uint8_t len = 0;
+	uint8_t timer_copy;
+	
+	if (*(offset) == 0)
+	{
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			timer_copy = timer_paused;
+		}
+		
+		if (timer_copy)
+			*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "Yes");
+		else
+			*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "No");
+	}
+	p9_send_reply(oc, Rread, tag, reply, len+4);
+	return 0;
+}
+
+int16_t mucron_pause_event(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
+{
+	uint8_t datacpy[*count + 1];
+	datacpy[*count] = 0;
+	uint16_t state = 0;
+	memcpy(datacpy, indata, *count);
+	if (sscanf((char *)datacpy, "%u", &state) == 1)
+	{
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
+		{
+			timer_paused = state;
+		}
+	}
+	else return -1;
+	return *count;
+}
+
 int16_t rtc_write_clock(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *count, uint8_t *indata)
 {
 	uint8_t datacpy[*count + 1];
 	datacpy[*count] = 0;
+	int32_t deltat;
 	time_t newtime;
 	memcpy(datacpy, indata, *count);
 	if (sscanf((char *)datacpy, "%lu", &newtime) == 1)
 	{
+		deltat = newtime - time();
+		update_timers(deltat);
 		set_time(newtime);
 	}
 	else return -1;
@@ -286,9 +330,32 @@ int16_t rtc_read_clock(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag
 	return 0;
 }
 
+extern char __bss_end;
+extern void *__brkval;
+
+int16_t freemem_read(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint64_t * offset, uint32_t * count)
+{
+	uint8_t reply[20];
+	uint8_t len = 0;
+	uint16_t free_memory;
+	
+	if (*(offset) == 0)
+	{
+		if((uint16_t)__brkval == 0)
+			free_memory = ((uint16_t)&free_memory) - ((uint16_t)&__bss_end);
+		else
+			free_memory = ((uint16_t)&free_memory) - ((uint16_t)__brkval);
+		*((uint32_t *)reply) = len = sprintf((char *)(reply + 4), "%u\n", free_memory);
+	}
+	p9_send_reply(oc, Rread, tag, reply, len+4);
+	return 0;
+		
+	
+}
+
 DirectoryEntry * p9_build_config_timer(uint8_t parent_qid, DirectoryEntry * parent)
 {
-	DirectoryEntry *dir_timer = (DirectoryEntry *)malloc(5 * sizeof(DirectoryEntry));
+	DirectoryEntry *dir_timer = (DirectoryEntry *)malloc(6 * sizeof(DirectoryEntry));
 	if (!dir_timer)
 	{
 		printf("Dir build malloc fail\n");
@@ -298,7 +365,8 @@ DirectoryEntry * p9_build_config_timer(uint8_t parent_qid, DirectoryEntry * pare
 	*(dir_timer + 1) = (DirectoryEntry){"new_event", {QTFILE, 0, p9_register_de(dir_timer+1)}, 0, p9_noread, mucron_build_save_event};
 	*(dir_timer + 2) = (DirectoryEntry){"delete_event",{QTFILE, 0, p9_register_de(dir_timer+2)}, 0, p9_noread, mucron_build_delete_event};
 	*(dir_timer + 3) = (DirectoryEntry){"list", {QTFILE, 0, p9_register_de(dir_timer+3)}, 0, mucron_list_events, p9_nowrite};
-	*(dir_timer + 4) = (DirectoryEntry){0};
+	*(dir_timer + 4) = (DirectoryEntry){"pause", {QTFILE, 0, p9_register_de(dir_timer+4)}, 0, mucron_is_paused, mucron_pause_event};
+	*(dir_timer + 5) = (DirectoryEntry){0};
 	
 	return dir_timer;
 }
@@ -306,7 +374,7 @@ DirectoryEntry * p9_build_config_timer(uint8_t parent_qid, DirectoryEntry * pare
 DirectoryEntry * p9_build_config_dir(uint8_t parent_qid, DirectoryEntry * parent)
 {
 	uint8_t tmpde;
-	DirectoryEntry *dir_config = (DirectoryEntry *)malloc(6 * sizeof(DirectoryEntry));
+	DirectoryEntry *dir_config = (DirectoryEntry *)malloc(7 * sizeof(DirectoryEntry));
 	if (!dir_config)
 	{
 		printf("Dir build malloc fail\n");
@@ -318,7 +386,8 @@ DirectoryEntry * p9_build_config_dir(uint8_t parent_qid, DirectoryEntry * parent
 	tmpde = p9_register_de(dir_config+3);
 	*(dir_config + 3) = (DirectoryEntry){"timer", {QTDIR, 0, tmpde}, p9_build_config_timer(tmpde, dir_config)};
 	*(dir_config + 4) = (DirectoryEntry){"clock", {QTFILE, 0, p9_register_de(dir_config + 4)}, 0, rtc_read_clock, rtc_write_clock};
-	*(dir_config + 5) = (DirectoryEntry){0};
+	*(dir_config + 5) = (DirectoryEntry){"freemem", {QTFILE, 0, p9_register_de(dir_config + 5)}, 0, freemem_read, p9_nowrite};
+	*(dir_config + 6) = (DirectoryEntry){0};
 	
 	return dir_config;
 }

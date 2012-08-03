@@ -1,16 +1,16 @@
 AVRDUDE_PROGRAMMER	:= usbtiny
 TARGET				:= fdioCV2.hex
 ELF					:= fdioCV2.elf
-SRCS				:= 9p.c 9p_config.c 9p_pos.c 9p_pwm.c 9p_io.c main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c softtimer.c
+SRCS				:= 9p.c 9p_config.c 9p_pgm.c 9p_pos.c 9p_pwm.c 9p_io.c main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c softtimer.c
 CC					:= avr-gcc
 OBJCOPY				:= avr-objcopy
 
 
 CCFLAGS = -std=c99 -mmcu=atmega644pa -Os -Wall -fno-strict-aliasing
 AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m644p
-LDFLAGS = 
+LDFLAGS = -Wl,--section-start=.boot=0x7000
 LIBS    = 
-OCFLAGS = -j .text -j .data -O ihex
+OCFLAGS = -j .text -j .data -j .boot -O ihex
 
 .PHONY: all clean distclean 
 all:: ${TARGET} 

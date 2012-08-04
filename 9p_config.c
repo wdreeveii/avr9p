@@ -353,41 +353,32 @@ int16_t freemem_read(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, 
 	
 }
 
+DirectoryEntry dir_timer[6];
 DirectoryEntry * p9_build_config_timer(uint8_t parent_qid, DirectoryEntry * parent)
 {
-	DirectoryEntry *dir_timer = (DirectoryEntry *)malloc(6 * sizeof(DirectoryEntry));
-	if (!dir_timer)
-	{
-		printf("Dir build malloc fail\n");
-		return 0;
-	}
-	*(dir_timer) = (DirectoryEntry){"..", {QTDIR, 0, parent_qid}, parent};
-	*(dir_timer + 1) = (DirectoryEntry){"new_event", {QTFILE, 0, p9_register_de(dir_timer+1)}, 0, p9_noread, mucron_build_save_event};
-	*(dir_timer + 2) = (DirectoryEntry){"delete_event",{QTFILE, 0, p9_register_de(dir_timer+2)}, 0, p9_noread, mucron_build_delete_event};
-	*(dir_timer + 3) = (DirectoryEntry){"list", {QTFILE, 0, p9_register_de(dir_timer+3)}, 0, mucron_list_events, p9_nowrite};
-	*(dir_timer + 4) = (DirectoryEntry){"pause", {QTFILE, 0, p9_register_de(dir_timer+4)}, 0, mucron_is_paused, mucron_pause_event};
-	*(dir_timer + 5) = (DirectoryEntry){0};
+	dir_timer[0] = (DirectoryEntry){"..", {QTDIR, 0, parent_qid}, parent};
+	dir_timer[1] = (DirectoryEntry){"new_event", {QTFILE, 0, p9_register_de(dir_timer+1)}, 0, p9_noread, mucron_build_save_event};
+	dir_timer[2] = (DirectoryEntry){"delete_event",{QTFILE, 0, p9_register_de(dir_timer+2)}, 0, p9_noread, mucron_build_delete_event};
+	dir_timer[3] = (DirectoryEntry){"list", {QTFILE, 0, p9_register_de(dir_timer+3)}, 0, mucron_list_events, p9_nowrite};
+	dir_timer[4] = (DirectoryEntry){"pause", {QTFILE, 0, p9_register_de(dir_timer+4)}, 0, mucron_is_paused, mucron_pause_event};
+	dir_timer[5] = (DirectoryEntry){0};
 	
 	return dir_timer;
 }
 
+DirectoryEntry dir_config[7];
 DirectoryEntry * p9_build_config_dir(uint8_t parent_qid, DirectoryEntry * parent)
 {
 	uint8_t tmpde;
-	DirectoryEntry *dir_config = (DirectoryEntry *)malloc(7 * sizeof(DirectoryEntry));
-	if (!dir_config)
-	{
-		printf("Dir build malloc fail\n");
-		return 0;
-	}
-	*(dir_config) = (DirectoryEntry){"..", {QTDIR, 0, parent_qid}, parent};
-	*(dir_config + 1) = (DirectoryEntry){"usart0_baud", {QTFILE, 0, p9_register_de(dir_config+1)}, 0, usart0_read_baud, usart0_write_baud};
-	*(dir_config + 2) = (DirectoryEntry){"usart1_baud", {QTFILE, 0, p9_register_de(dir_config+2)}, 0, usart1_read_baud, usart1_write_baud};
+
+	dir_config[0] = (DirectoryEntry){"..", {QTDIR, 0, parent_qid}, parent};
+	dir_config[1] = (DirectoryEntry){"usart0_baud", {QTFILE, 0, p9_register_de(dir_config+1)}, 0, usart0_read_baud, usart0_write_baud};
+	dir_config[2] = (DirectoryEntry){"usart1_baud", {QTFILE, 0, p9_register_de(dir_config+2)}, 0, usart1_read_baud, usart1_write_baud};
 	tmpde = p9_register_de(dir_config+3);
-	*(dir_config + 3) = (DirectoryEntry){"timer", {QTDIR, 0, tmpde}, p9_build_config_timer(tmpde, dir_config)};
-	*(dir_config + 4) = (DirectoryEntry){"clock", {QTFILE, 0, p9_register_de(dir_config + 4)}, 0, rtc_read_clock, rtc_write_clock};
-	*(dir_config + 5) = (DirectoryEntry){"freemem", {QTFILE, 0, p9_register_de(dir_config + 5)}, 0, freemem_read, p9_nowrite};
-	*(dir_config + 6) = (DirectoryEntry){0};
+	dir_config[3] = (DirectoryEntry){"timer", {QTDIR, 0, tmpde}, p9_build_config_timer(tmpde, dir_config)};
+	dir_config[4] = (DirectoryEntry){"clock", {QTFILE, 0, p9_register_de(dir_config + 4)}, 0, rtc_read_clock, rtc_write_clock};
+	dir_config[5] = (DirectoryEntry){"freemem", {QTFILE, 0, p9_register_de(dir_config + 5)}, 0, freemem_read, p9_nowrite};
+	dir_config[6] = (DirectoryEntry){0};
 	
 	return dir_config;
 }

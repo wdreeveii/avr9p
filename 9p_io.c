@@ -43,19 +43,14 @@ int16_t flipio_write(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t
 	return *count;
 }
 
+DirectoryEntry dir_io[4];
+
 DirectoryEntry * p9_build_io_dir(uint8_t parent_qid_index, DirectoryEntry * parent)
 {
-	DirectoryEntry *dir_io = (DirectoryEntry *)malloc(4 * sizeof(DirectoryEntry));
-	if (!dir_io)
-	{
-		printf("Dir build malloc fail\n");
-		return 0;
-	}
-	
-	*dir_io = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
-	*(dir_io + 1) = (DirectoryEntry){"setio", {QTFILE, 0, p9_register_de(dir_io+1)}, 0, p9_noread, setio_write};
-	*(dir_io + 2) = (DirectoryEntry){"flipio", {QTFILE, 0, p9_register_de(dir_io+2)},0, p9_noread, flipio_write};
-	*(dir_io + 3) = (DirectoryEntry){0};
+	dir_io[0] = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
+	dir_io[1] = (DirectoryEntry){"setio", {QTFILE, 0, p9_register_de(dir_io+1)}, 0, p9_noread, setio_write};
+	dir_io[2] = (DirectoryEntry){"flipio", {QTFILE, 0, p9_register_de(dir_io+2)},0, p9_noread, flipio_write};
+	dir_io[3] = (DirectoryEntry){0};
 	
 	return dir_io;
 }

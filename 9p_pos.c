@@ -18,17 +18,12 @@ int16_t pos_read(uint8_t oc, const struct DirectoryEntry *dp, uint16_t tag, uint
 	return 0;
 }
 
+DirectoryEntry dir_pos[3];
 DirectoryEntry * p9_build_pos_dir(uint8_t parent_qid_index, DirectoryEntry * parent)
 {
-	DirectoryEntry *dir_pos = (DirectoryEntry *)malloc(3 * sizeof(DirectoryEntry));
-	if (!dir_pos)
-	{
-		printf("Dir build malloc fail\n");
-		return 0;
-	}
-	*dir_pos = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
-	*(dir_pos + 1) = (DirectoryEntry){"0", {QTFILE, 0, p9_register_de(dir_pos+1)}, 0, pos_read, p9_nowrite};
-	*(dir_pos + 2) = (DirectoryEntry){0};
+	dir_pos[0] = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
+	dir_pos[1] = (DirectoryEntry){"0", {QTFILE, 0, p9_register_de(dir_pos+1)}, 0, pos_read, p9_nowrite};
+	dir_pos[2] = (DirectoryEntry){0};
 	
 	return dir_pos;
 }

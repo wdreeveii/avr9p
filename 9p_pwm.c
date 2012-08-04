@@ -121,26 +121,20 @@ int16_t pwm2_write(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *
 	return *count;
 }
 
+DirectoryEntry dir_pwm[11];
 DirectoryEntry * p9_build_pwm_dir(uint8_t parent_qid_index, DirectoryEntry * parent)
 {
-	DirectoryEntry *dir_pwm = (DirectoryEntry *)malloc(11 * sizeof(DirectoryEntry));
-	if (!dir_pwm)
-	{
-		printf("Dir build malloc fail\n");
-		return 0;
-	}
-	
-	*dir_pwm = (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
-	*(dir_pwm + 1) = (DirectoryEntry){"0", {QTFILE, 0, p9_register_de(dir_pwm+1)}, 0, p9_noread, pwm0_write};
-	*(dir_pwm + 2) = (DirectoryEntry){"0a", {QTFILE, 0, p9_register_de(dir_pwm+2)}, 0, p9_noread, pwm0a_write};
-	*(dir_pwm + 3) = (DirectoryEntry){"0b", {QTFILE, 0, p9_register_de(dir_pwm+3)}, 0, p9_noread, pwm0b_write};
-	*(dir_pwm + 4) = (DirectoryEntry){"1", {QTFILE, 0, p9_register_de(dir_pwm+4)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 5) = (DirectoryEntry){"1a", {QTFILE, 0, p9_register_de(dir_pwm+5)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 6) = (DirectoryEntry){"1b", {QTFILE, 0, p9_register_de(dir_pwm+6)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 7) = (DirectoryEntry){"2", {QTFILE, 0, p9_register_de(dir_pwm+7)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 8) = (DirectoryEntry){"2a", {QTFILE, 0, p9_register_de(dir_pwm+8)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 9) = (DirectoryEntry){"2b", {QTFILE, 0, p9_register_de(dir_pwm+9)}, 0, p9_noread, p9_nowrite};
-	*(dir_pwm + 10) = (DirectoryEntry){0};
+	dir_pwm[0]= (DirectoryEntry){"..", {QTDIR, 0, parent_qid_index}, parent};
+	dir_pwm[1] = (DirectoryEntry){"0", {QTFILE, 0, p9_register_de(dir_pwm+1)}, 0, p9_noread, pwm0_write};
+	dir_pwm[2] = (DirectoryEntry){"0a", {QTFILE, 0, p9_register_de(dir_pwm+2)}, 0, p9_noread, pwm0a_write};
+	dir_pwm[3] = (DirectoryEntry){"0b", {QTFILE, 0, p9_register_de(dir_pwm+3)}, 0, p9_noread, pwm0b_write};
+	dir_pwm[4] = (DirectoryEntry){"1", {QTFILE, 0, p9_register_de(dir_pwm+4)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[5] = (DirectoryEntry){"1a", {QTFILE, 0, p9_register_de(dir_pwm+5)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[6] = (DirectoryEntry){"1b", {QTFILE, 0, p9_register_de(dir_pwm+6)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[7] = (DirectoryEntry){"2", {QTFILE, 0, p9_register_de(dir_pwm+7)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[8] = (DirectoryEntry){"2a", {QTFILE, 0, p9_register_de(dir_pwm+8)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[9] = (DirectoryEntry){"2b", {QTFILE, 0, p9_register_de(dir_pwm+9)}, 0, p9_noread, p9_nowrite};
+	dir_pwm[10] = (DirectoryEntry){0};
 	
 	return dir_pwm;
 }

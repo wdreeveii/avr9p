@@ -33,11 +33,13 @@ uint8_t iotypes[NUM_PORTS];
 uint8_t adc_channels[8];
 uint16_t adc_vals[8];
 uint8_t num_channels = 0;
+uint8_t current_channel = 0;
 
 void build_analog_tables()
 {
 	uint8_t index = 0;
 	num_channels = 0;
+	current_channel = 0;
 	for(; index < NUM_PORTS; index++)
 	{
 		// Only AnalogINPUTS are on port A
@@ -72,6 +74,8 @@ void io_set_type(uint8_t port, uint8_t type)
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
 		{
 			iotypes[port] = type;
+			if (ports[port].regaddr == &DDRA)
+				build_analog_tables();
 		}
 	}
 }
@@ -98,7 +102,6 @@ void io_init()
 ISR(ADC_vect, ISR_BLOCK)
 {
 	static uint8_t dirty = 2;
-	static uint8_t current_channel = 0;
 	
 	if (!dirty && num_channels)
 	{
@@ -118,6 +121,9 @@ ISR(ADC_vect, ISR_BLOCK)
 }
 uint8_t io_read(uint8_t index)
 {
+	if (index >= NUM_PORTS)
+		return;
+		
 	if (iotypes[index] == PORT_DINPUT)
 	{
 		return !!(*(ports[index].valaddr) & (1U << ports[index].bit));
@@ -128,6 +134,9 @@ uint8_t io_read(uint8_t index)
 uint16_t io_aread(uint8_t index)
 {
 	uint16_t copy;
+	if (index >= NUM_PORTS)
+		return;
+	
 	if (iotypes[index] == PORT_AINPUT)
 	{
 		index = ports[index].bit;

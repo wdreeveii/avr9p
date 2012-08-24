@@ -21,6 +21,7 @@ struct s_config {
 	uint16_t			S2Baud;
 	uint8_t				S2Type;
 	int8_t				SerialNumber[SERIALNUM_LENGTH];
+	uint8_t				portconfig[NUM_PORTS];
 	uint8_t 			NumEvents;
 	struct s_mucron	EventList[MUCRON_EVENTLIST_SIZE];
 };
@@ -64,6 +65,14 @@ void EEPROM_write_page(uint16_t start_address, uint8_t *data, uint16_t length)
 	}	
 }
 
+void config_get_io_types(uint8_t *data)
+{
+	EEPROM_read_page(offsetof(struct s_config, portconfig), data, sizeof(uint8_t) * NUM_PORTS);
+}
+void config_set_io_types(uint8_t *data)
+{
+	EEPROM_write_page(offsetof(struct s_config, portconfig), data, sizeof(uint8_t) * NUM_PORTS);
+}
 /* EEPROM memory is much too slow to iterate through every time a timer tick is processed.
  * Keep an event list in ram that is initialized everytime the micro starts up
  */

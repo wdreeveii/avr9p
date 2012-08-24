@@ -66,11 +66,11 @@ void USART_Init0(uint16 baud)
 	UBRR0H = (unsigned char)(baud>>8);
 	UBRR0L = (unsigned char)baud;
 
-	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
-	UCSR0B = (1<<RXCIE0)|(1<<RXEN0)|(1<<TXEN0);
-	
 	/* Set 8 bit frame size */
 	UCSR0C = (3<<UCSZ00);
+	
+	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
+	UCSR0B = (1<<RXCIE0)|(1<<RXEN0)|(1<<TXEN0);
 	
 }
 
@@ -96,11 +96,11 @@ void USART_Init1(uint16 baud)
 	UBRR1H = (unsigned char)(baud>>8);
 	UBRR1L = (unsigned char)baud;
 	
-	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
-	UCSR1B = (1<<RXCIE1)|(1<<RXEN1)|(1<<TXEN1);
-
 	/* Set 8 bit frame size */
 	UCSR1C = (3<<UCSZ10);
+	
+	/* Enable transmitter and receiver (RXEN and TXEN), enable reception interrupt (RXCIE) */
+	UCSR1B = (1<<RXCIE1)|(1<<RXEN1)|(1<<TXEN1);
 }
 
 conn_handler usart0_rx_handler = NULL;

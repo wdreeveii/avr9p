@@ -112,7 +112,7 @@ int set_time(time_t timestamp)
 	if (isLeapYear(total_years))
 		month_lens[1] = 29;
 		
-	for (; rem_days > month_lens[month_index] && month_index < 12; month_index++)
+	for (; month_index < 12 && rem_days > month_lens[month_index]; month_index++)
 		rem_days -= month_lens[month_index];
 		
 	dateblock.tMonth = (month_index + 1) / 10;

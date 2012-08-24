@@ -1,14 +1,14 @@
 AVRDUDE_PROGRAMMER	:= usbtiny
 TARGET				:= fdioCV2.hex
 ELF					:= fdioCV2.elf
-SRCS				:= 9p.c 9p_config.c 9p_pgm.c 9p_pos.c 9p_pwm.c 9p_io.c main.c config.c buffer.c usart.c iocontrol.c rtc.c util.c softtimer.c
+SRCS				:= $(wildcard *.c)
 CC					:= avr-gcc
 OBJCOPY				:= avr-objcopy
 
 
-CCFLAGS = -std=c99 -mmcu=atmega644pa -Os -Wall -fno-strict-aliasing
-AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m644p
-LDFLAGS = -Wl,--section-start=.boot=0x7000
+CCFLAGS = -std=c99 -mmcu=atmega1284p -O3 -Wall -fno-strict-aliasing
+AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m1284p
+LDFLAGS = -Wl,--section-start=.boot=0xF000
 LIBS    = 
 OCFLAGS = -j .text -j .data -j .boot -O ihex
 
@@ -31,6 +31,6 @@ eeprom:
 	avrdude ${AVFLAGS} -U eeprom:w:config.hex
 	
 fuse:
-	avrdude ${AVFLAGS} -U lfuse:w:0xff:m -U efuse:w:0xff:m -U hfuse:w:0xd9:m
+	avrdude ${AVFLAGS} -U lfuse:w:0xc7:m -U efuse:w:0xff:m -U hfuse:w:0x99:m
 
 distclean:: clean

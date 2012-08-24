@@ -16,7 +16,9 @@ typedef uint32_t uint32;
 #define TRUE 1
 #define FALSE 0
 
-#define MUCRON_EVENTLIST_SIZE		8
+#define MUCRON_EVENTLIST_SIZE		16
+
+#define NELEM(x) (sizeof(x)/sizeof(x[0]))
 
 struct s_mucron {
 	time_t		start_time;
@@ -27,6 +29,8 @@ struct s_mucron {
 
 
 void config_Init();
+void config_get_io_types(uint8_t *data);
+void config_set_io_types(uint8_t *data);
 uint8_t config_get_protocol_type(uint8_t port);
 void config_set_protocol_type(uint8_t port, uint8_t type);
 

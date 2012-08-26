@@ -4,7 +4,8 @@ ELF					:= fdioCV2.elf
 SRCS				:= $(wildcard *.c)
 CC					:= avr-gcc
 OBJCOPY				:= avr-objcopy
-
+OBJDUMP				:= avr-objdump
+ADDRDEF				:= addrdef.txt
 
 CCFLAGS = -std=c99 -mmcu=atmega1284p -O3 -Wall -fno-strict-aliasing
 AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m1284p
@@ -18,6 +19,10 @@ all:: ${TARGET}
 
 ${TARGET}: ${ELF}
 	${OBJCOPY} ${OCFLAGS} $< $@
+	@echo "-Tdata=\c" > ${ADDRDEF}
+	${OBJDUMP} -t fdioCV2.elf | grep pgm_ram | awk '{printf $$1}' >> ${ADDRDEF}
+	@echo " -Ttext=\c" >> ${ADDRDEF}
+	${OBJDUMP} -t fdioCV2.elf | grep pgm_mem | awk '{print $$1}' >> ${ADDRDEF}
 	
 ${ELF}: ${SRCS} 
 	${CC} ${CCFLAGS} ${LDFLAGS} -o $@ ${SRCS} ${LIBS} 
@@ -31,6 +36,6 @@ eeprom:
 	avrdude ${AVFLAGS} -U eeprom:w:config.hex
 	
 fuse:
-	avrdude ${AVFLAGS} -U lfuse:w:0xc7:m -U efuse:w:0xff:m -U hfuse:w:0x99:m
+	avrdude ${AVFLAGS} -U lfuse:w:0xc7:m -U efuse:w:0xff:m -U hfuse:w:0x9f:m
 
 distclean:: clean

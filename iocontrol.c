@@ -51,9 +51,7 @@ void build_analog_tables()
 	}
 }
 void io_set_type(uint8_t port, uint8_t type)
-{
-	uint8_t index = 0;
-	
+{	
 	if (port >= NUM_PORTS)
 		return;
 
@@ -81,9 +79,7 @@ void io_set_type(uint8_t port, uint8_t type)
 }
 
 void io_init()
-{
-	uint8_t index = 0;
-		
+{		
 	config_get_io_types(iotypes);
 	build_analog_tables();
 	
@@ -122,7 +118,7 @@ ISR(ADC_vect, ISR_BLOCK)
 uint8_t io_read(uint8_t index)
 {
 	if (index >= NUM_PORTS)
-		return;
+		return 0;
 		
 	if (iotypes[index] == PORT_DINPUT)
 	{
@@ -135,7 +131,7 @@ uint16_t io_aread(uint8_t index)
 {
 	uint16_t copy;
 	if (index >= NUM_PORTS)
-		return;
+		return 0;
 	
 	if (iotypes[index] == PORT_AINPUT)
 	{

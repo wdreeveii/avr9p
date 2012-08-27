@@ -1,4 +1,4 @@
-AVRDUDE_PROGRAMMER	:= usbtiny
+AVRDUDE_PROGRAMMER	:= avrisp2
 TARGET				:= fdioCV2.hex
 ELF					:= fdioCV2.elf
 SRCS				:= $(wildcard *.c)
@@ -8,8 +8,8 @@ OBJDUMP				:= avr-objdump
 ADDRDEF				:= addrdef.txt
 
 CCFLAGS = -std=c99 -mmcu=atmega1284p -O3 -Wall -fno-strict-aliasing
-AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m1284p
-LDFLAGS = -Wl,--section-start=.boot=0xF000
+AVFLAGS = -c ${AVRDUDE_PROGRAMMER} -p m1284p -P usb
+LDFLAGS = -Wl,--section-start=.boot=0x1F000
 LIBS    = 
 OCFLAGS = -j .text -j .data -j .boot -O ihex
 
@@ -36,6 +36,6 @@ eeprom:
 	avrdude ${AVFLAGS} -U eeprom:w:config.hex
 	
 fuse:
-	avrdude ${AVFLAGS} -U lfuse:w:0xc7:m -U efuse:w:0xff:m -U hfuse:w:0x9f:m
+	avrdude ${AVFLAGS} -U lfuse:w:0xC7:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
 
 distclean:: clean

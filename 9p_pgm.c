@@ -6,6 +6,7 @@
 #include <util/crc16.h>
 #include <avr/pgmspace.h>
 #include <avr/boot.h>
+#include <avr/interrupt.h>
 
 #include "9p.h"
 #include "config.h"
@@ -19,7 +20,7 @@ static __inline__ void pgm_do_write( uint32_t page, uint8_t *buf )
 {
 	uint16_t i;
 	uint8_t sreg;
-	
+
 	// Disable interrupts.
 	
 	sreg = SREG;
@@ -74,7 +75,7 @@ int16_t pgm_load(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *co
 		memcpy(pgm_buffer + (*offset), indata, buflen);
 		return buflen;
 	}
-
+		
 	memcpy(datacpy, indata, *count);
 	datacpy[*count] = 0;
 	
@@ -84,11 +85,10 @@ int16_t pgm_load(const struct DirectoryEntry *dp, uint64_t *offset, uint32_t *co
 	for (index = 0; index < SPM_PAGESIZE; index++)
 		buflen = _crc16_update(buflen, pgm_buffer[index]);
 	
-	printf("%u->%u\n", checksum, buflen);
 	if (checksum != buflen)
 		return -1;
-	printf("same\n");
-	pgm_do_write( (uint16_t)((uint8_t *)(pgm_mem + (page<<8))), pgm_buffer );
+
+	pgm_do_write(((uint16_t)pgm_mem) + (page<<8), pgm_buffer );
 
 	return *count;
 }

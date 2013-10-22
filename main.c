@@ -17,7 +17,7 @@
 #include "rtc.h"
 #include "softtimer.h"
 #include "9p.h"
-#include "9p_pos.h"
+#include "9p_pgm.h"
 
 static void hardware_init()
 {
@@ -47,24 +47,30 @@ void test()
 int main(void)
 {
 	uint8_t mcusr;
+	uint8_t retval;
 	cli();
 	hardware_init();
 	p9_init();
 	mcusr = MCUSR;
 	MCUSR = 0;
 	sei();
+	printf("Arctic Precision Horticulture\n");
+	printf("Model: APC5 Firmware: 5.15\n");
 	printf("mcusr %x\n", mcusr);
-	USART_Send(0, (uint8_t*)"hello world\n", 12);
+	
 	
 	testtimerslot = set_timer(time() + 5, &test);
 	while (1)
 	{
-		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
-		{
-			pos_global++;
-		}
-		_delay_ms(10);
-		write_spi_mem();
+		  /*retval = nvmfile_init();
+		  printf("retval: %d\n", retval);
+		  if (retval)
+		  {
+		  	  vm_init();
+		  	  nvmfile_call_main();
+		  }
+		_delay_ms(1);*/
+		//write_spi_mem();
 	}	
 	// Never reached.
 	return(0);

@@ -7,11 +7,24 @@
 #define nop()  __asm__ __volatile__("nop")
 #include <inttypes.h>
 #include "rtc.h"
+
+#define PACKED __attribute__ ((packed))
+//typedef _Bool     bool;
+typedef _Bool     bool_t;
+
+typedef uintptr_t ptr_t;
+
 // Define some useful types:
 typedef signed char int8;
 typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
+
+#define DBG8 "%02x"
+#define DBG16 "%04x"
+#define DBG32 "%08lx"
+
+#define DEBUGF printf
 
 #define TRUE 1
 #define FALSE 0

@@ -17,22 +17,21 @@
 #include "util.h"
 
 /* Some definitions.. */
-uint8_t rtc_check_halt(void);
-void rtc_halt_reset(void);
-uint8_t rtc_check_osc_fail(void);
-void rtc_stop_reset(void);
-uint8_t rtc_check_stop(void);
-void rtc_squarewave_enable(void);
-void rtc_osc_fail_reset(void);
 
-int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf);
-int m41t83_write_bytes(uint16_t eeaddr, int len, uint8_t *buf);
+void rtc_start_reset(void);
+uint8_t rtc_check_start(void);
+void rtc_vbat_enable(void);
+uint8_t rtc_check_vbat(void);
+void rtc_mk_config(void);
+uint8_t rtc_check_config(void);
+int i2c_read_bytes(uint16_t eeaddr, int len, uint8_t *buf);
+int i2c_write_bytes(uint16_t eeaddr, int len, uint8_t *buf);
 
 /* Lets start off with defining the date and time bits of the memory mapped
  * registers on the m41t83
  * Page 21 of the m41t83 datasheet has a table with more detail
  */
-struct m41DateBlock {
+struct GeneralDateBlock {
 	unsigned int secs : 4;
 	unsigned int tsecs : 3;
 	unsigned int st : 1;
@@ -47,7 +46,10 @@ struct m41DateBlock {
 	unsigned int CB1 : 1;
 	
 	unsigned int DayOfWeek : 3;
-	unsigned int placeholder2 : 5;
+	unsigned int VBATEN : 1;
+	unsigned int Vbat : 1;
+	unsigned int OSCON : 1;
+	unsigned int placeholder2 : 2;
 	
 	unsigned int DayOfMonth : 4;
 	unsigned int tDayOfMonth : 2;
@@ -55,7 +57,8 @@ struct m41DateBlock {
 	
 	unsigned int Month : 4;
 	unsigned int tMonth : 1;
-	unsigned int placeholder4 : 3;
+	unsigned int LP : 1;
+	unsigned int placeholder4 : 2;
 	
 	unsigned int Year : 4;
 	unsigned int tYear : 4;
@@ -89,11 +92,10 @@ char isLeapYear(uint32_t year)
  * Convert a unix timestamp into the m41t83 memory block format and save to device
  * Takes one argument the timestamp in the number of seconds since midnight January 1 1970.
  * Returns -1 on error
- * Author: Whitham D. Reeve II
  */
 int set_time(time_t timestamp)
 {
-	struct m41DateBlock dateblock;
+	struct GeneralDateBlock dateblock;
 	uint8_t rv = 0;
 	
 	uint8_t month_lens[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
@@ -134,7 +136,9 @@ int set_time(time_t timestamp)
 
 	dateblock.tsecs = rem_secs / 10;
 	dateblock.secs = rem_secs % 10;
-	rv = m41t83_write_bytes(0x01, 7,(void*) &dateblock);
+	dateblock.st = 1;
+	dateblock.VBATEN = 1;
+	rv = i2c_write_bytes(0x00, 7,(void*) &dateblock);
 	if (rv == -1) printf("RTC set_time WRITE ERROR\n");
 	return 0;
 }
@@ -144,15 +148,14 @@ int set_time(time_t timestamp)
  * Reads the m41t83 date/time block from the device and converts into unix time.
  * Takes no arguments
  * Returns the number of seconds since midnight January 1 1970
- * Author: Whitham D. Reeve II
  */
 time_t get_time()
 {
 	uint8_t month_lens[12] = {31,28,31,30,31,30,31,31,30,31,30,31};
 	uint8_t rv = 0;
-	struct m41DateBlock dateblock;
+	struct GeneralDateBlock dateblock;
 	
-	rv = m41t83_read_bytes(0x01, 7, (void *)(&dateblock));
+	rv = i2c_read_bytes(0x00, 7, (void *)(&dateblock));
 	if (rv == -1) printf("RTC time READ ERROR\n");
 	
 	uint32_t year = 2000 + dateblock.Year + (dateblock.tYear * 10);
@@ -177,7 +180,6 @@ time_t get_time()
 /* time_t time()
  * get a copy of the current time stored in the global variable.
  * Returns a cached copy of the number of seconds since midnight Jan 1 1970
- * Author: Whitham D. Reeve II
  */
 time_t current_time_global;
 time_t time()
@@ -188,6 +190,25 @@ time_t time()
 		copy = current_time_global;
 	}
 	return copy;
+}
+void mcp7940_start()
+{
+	if(rtc_check_start())
+	{
+		printf("Resetting..\n");
+		rtc_start_reset();	
+	}
+	if (rtc_check_vbat())
+	{
+		printf("Enabling external battery..\n");
+		rtc_vbat_enable();
+	}
+	if (rtc_check_config())
+	{
+		printf("Setting RTC config..\n");
+		rtc_mk_config();
+	}
+
 }
 
 void RTC_Init(void)
@@ -202,30 +223,14 @@ void RTC_Init(void)
 	
 	// configure pin change interrupt for the square wave output from the rtc
 	// enable PCIE2
-	PCICR = (1 << 1);
-	PCMSK1 = (1 << 2);
+	PCICR = (1 << 2);
+	PCMSK2 = (1 << 2);
 	
-	PORTB &= ~(1<<2);
-	DDRB &= ~(1<<2);
+	PORTC &= ~(1<<2);
+	DDRC &= ~(1<<2);
 	
-	if(rtc_check_halt())
-	{
-		printf("halt Resetting..\n");
-		rtc_halt_reset();	
-	}
-	if(rtc_check_osc_fail())
-	{
-		printf("osc Resetting..\n");
-		rtc_osc_fail_reset();
-	}
-	if(rtc_check_stop())
-	{
-		printf("Resetting..\n");
-		rtc_stop_reset();	
-	}
-	//rtc_start();
 	current_time_global = get_time();
-	rtc_squarewave_enable();
+	mcp7940_start();
 }
 
 void print_time(void)
@@ -240,15 +245,14 @@ void print_time(void)
 /* ISR Pin Change Interrupt 1
  * NOBLOCK because there is a lot to do here.
  * Execute everything that needs to happen once a second
- * Author: Whitham D. Reeve II
  */
-ISR(PCINT1_vect, ISR_NOBLOCK)
+ISR(PCINT2_vect, ISR_NOBLOCK)
 {
 	time_t copy;
 	// issue print request
 	// The square wave is like any square wave, 
 	// and thus it changes value twice in 1 period.
-	if (PINB & (1<<2))
+	if (PINC & (1<<2))
 	{
 		copy = get_time();
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE)
@@ -263,157 +267,113 @@ ISR(PCINT1_vect, ISR_NOBLOCK)
 	else
 		{} // do nothing
 }
-
-/* void rtc_squarewave_enable(void)
- * Tell the m41t83 chip to enable the square wave signal output
- * Author: Whitham D. Reeve II
+/* uint8_t rtc_check_vbat(void)
+ * Ask the rtc chip if the vbat power source is enabled
  */
-void rtc_squarewave_enable(void)
+uint8_t rtc_check_vbat(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
-	rv = m41t83_read_bytes(0x13, 1, databuffer);
-	if (rv == -1) printf("RTC squarewave_enable READ ERROR\n");
-	
-	databuffer[0] |= 0xF0;
-	
-	rv = m41t83_write_bytes(0x13, 1, databuffer);
-	if (rv == -1) printf("RTC squarewave_enable WRITE ERROR\n");
-	
-	rv = m41t83_read_bytes(0x0A, 1, databuffer);
-	if (rv == -1) printf("RTC squarewave_enable READ ERROR\n");
-	
-	databuffer[0] |= (1<<6);
-	
-	rv = m41t83_write_bytes(0x0A, 1, databuffer);
-	if (rv == -1) printf("RTC squarewave_enable WRITE ERROR\n");
-}
-
-/* uint8_t rtc_check_halt(void)
- * Ask the m41t83 chip if the halt bit is set
- * Author: Whitham D. Reeve II
- */
-uint8_t rtc_check_halt(void)
-{
-	uint8_t rv = 0;
-	uint8_t databuffer[1];
-	rv = m41t83_read_bytes(0x0C, 1, databuffer);
+	rv = i2c_read_bytes(0x03, 1, databuffer);
 	if (rv == -1)
 	{
-		printf("RTC check_halt WRITE ERROR\n");
+		printf("RTC check_vbat READ ERROR\n");
 		return 1;
-		
 	}
-	if (databuffer[0] & (1<<6))
+	if ( !(databuffer[0] & (1 << 3)) )
 	{
-		printf("WARNING: HALT BIT SET\n");
-		return 1;	
+		printf("WARNING: VBAT NOT ENABLED\n");
+		return 1;
 	}
 	return 0;
 }
-/* void rtc_halt_reset(void)
- * Tell the m41t83 chip to reset the halt bit
- * Author: Whitham D. Reeve II
+/* void rtc_vbat_enable(void)
+ * Tell the rtc chip to enable battery power
  */
-void rtc_halt_reset(void)
+void rtc_vbat_enable(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
-	databuffer[0] = 0x00;
-	rv = m41t83_write_bytes(0x0C, 1, databuffer);
-	if (rv == -1) printf("RTC halt_reset WRITE ERROR\n");
+	rv = i2c_read_bytes(0x03, 1, databuffer);
+	if (rv == -1) printf("RTC VBAT enable READ ERROR\n");
+	databuffer[0] |= (1 << 3);
+	rv = i2c_write_bytes(0x03, 1, databuffer);
+	if (rv == -1) printf("RTC VBAT enable WRITE ERROR\n");
+}
+
+/* void rtc_mk_config(void)
+ * Setup configuration options in the RTC chip
+ */
+void rtc_mk_config(void)
+{
+	uint8_t rv = 0;
+	uint8_t databuffer[1];
+	databuffer[0] = (1 << 6) | (1 << 3);
+	rv = i2c_write_bytes(0x07, 1, databuffer);
+	if (rv == -1) printf("RTC config WRITE ERROR\n");
+}
+
+/* uint8_t rtc_check_config(void)
+ * Ask the rtc chip for the configuration settings
+ */
+uint8_t rtc_check_config(void)
+{
+	uint8_t rv = 0;
+	uint8_t databuffer[1];
+	rv = i2c_read_bytes(0x07, 1, databuffer);
+	if (rv == -1)
+	{
+		printf("RTC check_config READ ERROR\n");
+		return 1;
+	}
+	if (databuffer[0] != ( (1 << 6) | (1 << 3) ) )
+	{
+		rv = databuffer[0];
+		printf("%x\n", rv);
+		printf("WARNING: Improper configuration.\n");
+		return 1;
+	}
+	return 0;
 }
 
 /* uint8_t rtc_check_stop(void)
- * Ask the m41t83 chip if the stop bit is set
- * Author: Whitham D. Reeve II
+ * Ask the rtc chip if the oscillator is started
  */
-uint8_t rtc_check_stop(void)
+uint8_t rtc_check_start(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
-	rv = m41t83_read_bytes(0x01, 1, databuffer);
+	rv = i2c_read_bytes(0x00, 1, databuffer);
 	if (rv == -1)
 	{
 		printf("RTC check_stop READ ERROR\n");
 		return 1;
 	}
-	if (databuffer[0] & 0x80)
+	if (!(databuffer[0] & 0x80) )
 	{
-		printf("WARNING: STOP BIT SET\n");
+		printf("WARNING: START BIT NOT SET\n");
 		return 1;
 	}
 	return 0;
 }
 
-/* void rtc_stop_reset(void)
- * Tell the m41t83 chip to reset the stop bit
- * Author: Whitham D. Reeve II
+/* void rtc_start_reset(void)
+ * Tell the rtc chip to start the oscillator
  */
-void rtc_stop_reset(void)
+void rtc_start_reset(void)
 {
 	uint8_t rv = 0;
 	uint8_t databuffer[1];
 	// pump the oscillator
 	databuffer[0] = 0x80;
-	rv = m41t83_write_bytes(0x01, 1, databuffer);
+	rv = i2c_write_bytes(0x00, 1, databuffer);
 	if (rv == -1) printf("RTC stop_reset WRITE ERROR\n");
-	
-	databuffer[0] = 0x00;
-	rv = m41t83_write_bytes(0x01, 1, databuffer);
-	if (rv == -1) printf("RTC stop_reset WRITE ERROR\n");
-	
-	delay_1s();
-	delay_1s();
-	delay_1s();
-	delay_1s();
-	
 }
 
-/* uint8_t rtc_check_osc_fail(void)
- * Ask the m41t83 chip if the oscillator fail bit is set
- * Author: Whitham D. Reeve II
- */
-uint8_t rtc_check_osc_fail(void)
-{
-	uint8_t rv = 0;
-	uint8_t databuffer[1];
-	rv = m41t83_read_bytes(0x0F, 1, databuffer);
-	if (rv == -1)
-	{
-		printf("RTC check_osc_fail READ ERROR\n");
-		return 1;
-	
-	}
-	if (databuffer[0] & 0x04)
-	{
-		printf("WARNING: OSCILLATOR FAIL BIT SET\n");
-		return 1;
-	}
-	return 0;
-	
-}
-
-/* void rtc_osc_fail_reset(void)
- * Tell the m41t83 chip to reset the oscillator fail bit
- * Author: Whitham D. Reeve II
- */
-void rtc_osc_fail_reset(void)
-{
-	uint8_t rv = 0;
-	uint8_t databuffer[1];
-	rv = m41t83_read_bytes(0x0F, 1, databuffer);
-	if (rv == -1) printf("RTC osc_fail_reset READ ERROR\n");
-	
-	databuffer[0] &= ~0x04;
-	
-	rv = m41t83_write_bytes(0x0F, 1, databuffer);
-	if (rv == -1) printf("RTC osc_fail_reset WRITE ERROR\n");
-}
 
 /* BEGIN IIC support code */
 
-#define M41T83_SLAVE_ADDR	0xD0
+#define I2C_SLAVE_ADDR	0xDE
 
 // bus cycles to wait before timeout on lengthy operations like write
 #define MAX_ITER	200
@@ -448,13 +408,20 @@ uint8_t twst;
  * be NACKed, which the client will take as an indication to not
  * initiate further transfers.
  */
-int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf)
+int
+i2c_read_bytes(uint16_t eeaddr, int len, uint8_t *buf)
 {
   uint8_t sla, twcr, n = 0;
   int rv = 0;
 
-  sla = M41T83_SLAVE_ADDR;
-  
+#ifndef WORD_ADDRESS_16BIT
+  /* patch high bits of EEPROM address into SLA */
+  sla = I2C_SLAVE_ADDR | (((eeaddr >> 8) & 0x07) << 1);
+#else
+  /* 16-bit address devices need only TWI Device Address */
+  sla = I2C_SLAVE_ADDR;
+#endif
+
   /*
    * Note [8]
    * First cycle: master transmitter mode
@@ -500,6 +467,26 @@ int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf)
     default:
       goto error;		/* must send stop condition */
     }
+
+#ifdef WORD_ADDRESS_16BIT
+  TWDR = (eeaddr >> 8);		/* 16-bit word address device, send high 8 bits of addr */
+  TWCR = _BV(TWINT) | _BV(TWEN); /* clear interrupt to start transmission */
+  while ((TWCR & _BV(TWINT)) == 0) ; /* wait for transmission */
+  switch ((twst = TW_STATUS))
+    {
+    case TW_MT_DATA_ACK:
+      break;
+
+    case TW_MT_DATA_NACK:
+      goto quit;
+
+    case TW_MT_ARB_LOST:
+      goto begin;
+
+    default:
+      goto error;		/* must send stop condition */
+    }
+#endif
 
   TWDR = eeaddr;		/* low 8 bits of addr */
   TWCR = _BV(TWINT) | _BV(TWEN); /* clear interrupt to start transmission */
@@ -573,6 +560,7 @@ int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf)
 	case TW_MR_DATA_ACK:
 	  *buf++ = TWDR;
 	  rv++;
+	  if(twst == TW_MR_DATA_NACK) goto quit;
 	  break;
 
 	default:
@@ -609,20 +597,26 @@ int m41t83_read_bytes(uint8_t eeaddr, int len, uint8_t *buf)
  * actual number of data byte written.  It is up to the caller to
  * re-invoke it in order to write further data.
  */
-int m41t83_write_page(uint8_t eeaddr, int len, uint8_t *buf)
+int
+i2c_write_page(uint16_t eeaddr, int len, uint8_t *buf)
 {
   uint8_t sla, n = 0;
   int rv = 0;
-  uint8_t endaddr;
+  uint16_t endaddr;
 
-  if (eeaddr + len < (eeaddr | (PAGE_SIZE - 1)))
+  if (eeaddr + len <= (eeaddr | (PAGE_SIZE - 1)))
     endaddr = eeaddr + len;
   else
     endaddr = (eeaddr | (PAGE_SIZE - 1)) + 1;
   len = endaddr - eeaddr;
 
+#ifndef WORD_ADDRESS_16BIT
   /* patch high bits of EEPROM address into SLA */
-  sla = M41T83_SLAVE_ADDR;
+  sla = I2C_SLAVE_ADDR | (((eeaddr >> 8) & 0x07) << 1);
+#else
+  /* 16-bit address devices need only TWI Device Address */
+  sla = I2C_SLAVE_ADDR;
+#endif
 
   restart:
   if (n++ >= MAX_ITER)
@@ -664,6 +658,26 @@ int m41t83_write_page(uint8_t eeaddr, int len, uint8_t *buf)
     default:
       goto error;		/* must send stop condition */
     }
+
+#ifdef WORD_ADDRESS_16BIT
+  TWDR = (eeaddr>>8);		/* 16 bit word address device, send high 8 bits of addr */
+  TWCR = _BV(TWINT) | _BV(TWEN); /* clear interrupt to start transmission */
+  while ((TWCR & _BV(TWINT)) == 0) ; /* wait for transmission */
+  switch ((twst = TW_STATUS))
+    {
+    case TW_MT_DATA_ACK:
+      break;
+
+    case TW_MT_DATA_NACK:
+      goto quit;
+
+    case TW_MT_ARB_LOST:
+      goto begin;
+
+    default:
+      goto error;		/* must send stop condition */
+    }
+#endif
 
   TWDR = eeaddr;		/* low 8 bits of addr */
   TWCR = _BV(TWINT) | _BV(TWEN); /* clear interrupt to start transmission */
@@ -716,14 +730,15 @@ int m41t83_write_page(uint8_t eeaddr, int len, uint8_t *buf)
  * function until either an error has been returned, or all bytes
  * have been written.
  */
-int m41t83_write_bytes(uint16_t eeaddr, int len, uint8_t *buf)
+int
+i2c_write_bytes(uint16_t eeaddr, int len, uint8_t *buf)
 {
   int rv, total;
 
   total = 0;
   do
     {
-      rv = m41t83_write_page(eeaddr, len, buf);
+      rv = i2c_write_page(eeaddr, len, buf);
 
       if (rv == -1)
 	return -1;
@@ -736,3 +751,5 @@ int m41t83_write_bytes(uint16_t eeaddr, int len, uint8_t *buf)
 
   return total;
 }
+
+

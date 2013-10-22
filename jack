@@ -1,0 +1,1 @@
+jacksum -F "#CHECKSUM" -a crc:16,8005,ffff,true,true,0 -E dec

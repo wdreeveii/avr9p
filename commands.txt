@@ -1,0 +1,7 @@
+echo `date +'%s' --date='55 seconds ago'` 180 1620 8
+echo `date +'%s' --date='1145'` 200 1600 9
+echo `date +'%s' --date='43200 seconds ago'` 43200 43200 10
+echo `date +'%s' --date='43200 seconds ago'` 43200 43200 7
+echo `date +'%s' --date='43200 seconds ago'` 43200 43200 6
+
+echo `date +'%s' --date='5 seconds'` 180 1620 8 > new_event; echo `date +'%s' --date='1205 seconds'` 200 1600 9 > new_event; echo `date +'%s' --date='5 seconds'` 43200 43200 10 > new_event; echo `date +'%s' --date='5 seconds'` 43200 43200 7 > new_event; echo `date +'%s' --date='5 seconds'` 43200 43200 6 > new_event; echo `date +'%s' --date='43195 seconds ago'` 43200 43200 11 > new_event;
